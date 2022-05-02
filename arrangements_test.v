@@ -1,5 +1,5 @@
 From mathcomp Require Import all_ssreflect all_algebra.
-From mathcomp.analysis Require Import reals classical_sets topology.
+From mathcomp.analysis Require Import reals classical_sets topology boolp.
 From mathcomp Require Import zify.
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -22,7 +22,7 @@ Canonical hplane_subType := [subType for M].
 Lemma hplane_rank (h: hplane) : \rank h = d.-1.
 Proof. by apply /eqP ; case: h. Qed.
 
-Variables (P : n.-tuple hplane).
+Variables (H : n.-tuple hplane).
 
 (* A sign represents which side of a hyperplane a point is *)
 Inductive sign := Left | On | Right.
@@ -57,21 +57,49 @@ Definition hside (x : point) (h : hplane) : sign :=
 Definition Mpoints k (M : 'M[R]_(k, d)) : set point := [set x | (x <= M)%MS ].
 (* The set of points Left/On/Right of a hyperplane *) 
 Definition hpoints s h : set point := [set x | hside x h == s ].
-(* The position of a point relative to the hyperplanes of P *)
-Definition feature (x : point) : n.-tuple sign := map_tuple (hside x) P.
+
+Lemma Mpoints_id : Mpoints 1%:M = setT.
+Proof. by rewrite -subTset /subset /Mpoints => x _ /= ; apply submx1. Qed.
 
 Definition face := n.-tuple sign.
-Definition in_face (x : point) (f : face) : bool := (feature x) == f.
-Definition fpoints (f : face) : set point := [set x | in_face x f].
-Definition in_clface (x : point) (f : face) : bool :=
-  all2 (fun sx sf => (sx == On) || (sx == sf)) (feature x) f.
-Definition clfpoints (f : face) : set point := [set x | in_clface x f].
-
+Definition fpoints (f : face) : set point := 
+  \bigcap_i hpoints (tnth f i) (tnth H i).
+Definition clfpoints (f : face) : set point := 
+  \bigcap_i (hpoints (tnth f i) (tnth H i) `|` hpoints On (tnth H i)).
 Definition nempty (f : face) : Prop := fpoints f !=set0.
 
 Definition dim f : nat := infimum 0 (mxrank @` [set M : 'M[R]_d | fpoints f `<=` Mpoints M]).
 
+Lemma inf_le (A : set nat) x0 t :
+  (exists2 x, A x & x <= t) -> infimum x0 A <= t.
+Proof. Admitted.
 
+Lemma inf_ge (A : set nat) x0 t :
+  (forall x, A x -> x >= t) -> A !=set0 -> infimum x0 A >= t.
+Proof. Admitted. 
+
+
+Lemma card_set_count m (T : eqType) (t : m.-tuple T) x : 
+  #|[set i | tnth t i == x]| = count (xpred1 x) t.
+Proof. 
+  rewrite cardE /in_set /enum_mem size_filter /= /mem /=.
+  rewrite -(@count_map _ _ _ (fun s : T => boolp.asbool (s == x))).
+  f_equal.
+  - by apply funext => s ; rewrite asboolb.
+  - apply (@eq_from_nth _ x) ; rewrite size_map -enumT size_enum_ord.
+    + by case: t => /= ; lia.
+    + move=> i lt_in. rewrite (nth_map (Ordinal lt_in)) ?size_enum_ord //.
+      by rewrite (tnth_nth x) ; f_equal ; rewrite nth_enum_ord //.
+Qed.
+
+
+Lemma fpoints_onNon f :
+  let P := [set i | tnth f i == On] in
+  fpoints f =
+    Mpoints (\bigcap_(i | i \in P) tnth H i)%MS `&`  
+    \bigcap_(i in ~`P) hpoints (tnth f i) (tnth H i).
+Proof. Admitted.
+    
 (* This would be the most natural definition of a subface :
 Definition subfaceT f g := 
   (dim g = (dim f).+1) /\ (fpoints f `<=` closure (fpoints g)).
@@ -85,19 +113,97 @@ Lemma clfpointsE g : nempty g -> closure (fpoints g) `<=>` clfpoints g.
 Definition subface f g : Prop := 
   (dim g = (dim f).+1) /\ (fpoints f `<=` clfpoints g).
 
-Lemma dim_lb (f : face) : nempty f -> dim f >= d - count (xpred1 On) f.
+Lemma image_nonempty aT rT (f : aT -> rT) (A : set aT) :
+  A !=set0 -> [set f x | x in A] !=set0.
+Proof. by case => [x Ax] ; exists (f x) ; exists x. Qed.
+
+Lemma hplane_cap_rank_lb (P : set 'I_n) : \rank (\bigcap_(i in P) tnth H i) >= d - #|P|.
 Proof. Admitted.
+
+
+Definition norm (x : point) : R := Num.sqrt ((x *m x^T)%R ord0 ord0). 
+Lemma norm_scalarMl x (s : R) : (s >= 0)%R -> norm (s%:M *m x) = (s * norm x)%R.
+Proof. Admitted.
+Lemma norm_scalarMr x (s : R) : (s >= 0)%R -> norm (x *m s%:M) = (s * norm x)%R.
+Proof. Admitted.
+
+(* A simple (i.e. without filters) definition of an open set of points *)
+Definition openS_near (S : set point) x :=
+  exists2 eps : R, (eps > 0)%R & forall y, (norm (x - y) <= eps)%R -> S y.
+Definition openS (S : set point) := forall x, S x -> openS_near S x.
+
+Lemma openS_near_scale S (x u : point) : 
+  openS_near S x -> exists2 l, (l > 0)%R & S (x + l%:M *m u)%R.
+Proof. Admitted.
+
+Lemma open_Non f : 
+  let P := [set i | tnth f i == On] in
+  openS (\bigcap_(i in ~`P) hpoints (tnth f i) (tnth H i)).
+Proof. Admitted.
+
+Lemma Csubset1 T (A : set T) (x : T) : ([set x] `<=` A) = (x \in A).
+Proof. Admitted.
+
+Lemma submx_lin (x y : point) (l : R) (M : 'M[R]_d) : 
+  ((x + l%:M *m y)%R <= M)%MS -> (l > 0)%R -> (x <= M)%MS -> (y <= M)%MS.
+Proof. Admitted.
+
+Lemma dim_lb (f : face) : nempty f -> dim f >= d - count (xpred1 On) f.
+Proof.
+  move=> NEf. apply inf_ge ; last first.
+    by apply image_nonempty ; exists 1%:M%R => /= ; rewrite Mpoints_id ; apply subsetT.
+  move=> r /= [M points_fM <-] ; move: NEf (@open_Non f) points_fM. 
+  rewrite /nempty /openS -card_set_count fpoints_onNon ; 
+  remember ([set i | tnth f i == On]) as P ; rewrite -HeqP ;
+  remember (\bigcap_(i in P) tnth H i)%MS as K ;
+  remember (\bigcap_(i in ~`P) hpoints (tnth f i) (tnth H i)) as S ; rewrite -HeqS.
+  move=> [x /= [Kx Sx]] /(_ x Sx) O_Sx KSM ; rewrite /Mpoints /= in Kx.
+  have KiM : forall i, row i K \in Mpoints M => [i|].
+    move: (openS_near_scale (row i K) O_Sx) => [l lt_0l S_x_lKi].
+    have K_x_lKi : (x + l%:M *m row i K)%R \in Mpoints K.
+      by rewrite inE /Mpoints /= ; apply addmx_sub => // ;
+      apply mulmx_sub ; apply row_sub.
+    have M_x_lKi : (x + l%:M *m row i K)%R \in Mpoints M ; [|clear K_x_lKi S_x_lKi].
+      rewrite -Csubset1 ; apply (@subset_trans _ (Mpoints K `&` S)) => // ; rewrite Csubset1.
+      rewrite in_setI ; apply /andP ; split ; [apply K_x_lKi|rewrite inE ; apply S_x_lKi].
+    have Mx : x \in Mpoints M.
+      rewrite -Csubset1 ; apply (@subset_trans _ (Mpoints K `&` S)) => // ; rewrite Csubset1.
+      rewrite in_setI ; apply /andP ; split ; rewrite inE ?/Mpoints //=.
+    rewrite !inE /Mpoints /= in M_x_lKi Mx * ; apply (@submx_lin x _ l) => //.
+  have KM : (K <= M)%MS.
+    by apply /row_subP => i ; move: (KiM i) ; rewrite inE /Mpoints /=.
+  apply (@leq_trans (\rank K)) ; last by apply mxrankS.
+  by rewrite HeqK hplane_cap_rank_lb.
+Qed.
+
 
 Section SimpleArrangement.
-Definition simple := True.
-Hypothesis sP : simple.
 
+(* Since I only study arrangements in which all hyperplanes 
+ * contain the origin, a simple arrangement can only have 
+ * at most d hyperplanes. To simplify I also suppose that n = d. *)
+Hypothesis eq_nd : n = d.
+Hypothesis simple : \rank (\bigcap_(i : 'I_n) tnth H i) == 0.
 
-Lemma simple_dim_ub f : dim f <= d - count (xpred1 On) f.
+Lemma simple_ext (P : set 'I_n) : 
+  \rank (\bigcap_(i in P) tnth H i) <= d - #|P|.
 Proof. Admitted.
 
+Lemma simple_dim_ub f : dim f <= d - count (xpred1 On) f.
+Proof.
+  rewrite /dim ; apply inf_le.
+  rewrite fpoints_onNon ; 
+  remember [set i | tnth f i == On] as P ; rewrite -HeqP ;
+  remember (\bigcap_(i in P) tnth H i)%MS as M.
+  exists (\rank M).
+    by apply imageP ; rewrite mksetE ; apply subIsetl.
+  rewrite HeqM ; apply (leq_trans (simple_ext _)).
+  by apply eq_leq ; congr (_ - _) ; rewrite HeqP card_set_count.
+Qed.
+
+
 Lemma simple_dim_eq f : nempty f -> dim f = d - count (xpred1 On) f.
-Proof. by apply /eqP ; rewrite eqn_leq simple_dim_ub dim_lb. Qed.
+Proof. by move=> NEf ; apply /eqP ; rewrite eqn_leq simple_dim_ub dim_lb. Qed.
 
 End SimpleArrangement.
 
