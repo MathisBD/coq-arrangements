@@ -1,0 +1,3 @@
+-R . MyProofs
+tactics.v
+arrangements.v
