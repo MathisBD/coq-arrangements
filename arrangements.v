@@ -181,25 +181,61 @@ Proof.
   by exists (GRing.one (Num.NumDomain.ringType R)).
 Qed.
 
-Check big_ord_recr.
 
-Lemma bigcap_ord_recr (T : Type) m (F : 'I_m.+1 -> set nat) : 
-  (\bigcap_(i : 'I_m.+1) F i) = (\bigcap_(i : 'I_m) F (widen_ord (leqnSn m) i)) `&` (F ord_max).
+Lemma le_min (x y z : R) : (x <= Num.min y z)%R <-> (x <= y)%R && (x <= z)%R.
 Proof. Admitted.
+  (*case: (Num.Theory.ltrP y z) => [/Order.POrderTheory.ltW|] Oyz ;
+  apply is_true_inj ; apply propext ; split.
+  - move=> le_xy. apply /andP ; split => //. Search transitive. apply Order.MeetJoinMixin.le_trans.*)
+
+Lemma widen_ord_ante m (i : 'I_m.+1) :
+  i != ord_max -> exists j : 'I_m, i = widen_ord (leqnSn m) j.
+Proof. 
+  case: i => [i lt_im1] => ne_oiom.
+  case: (i =P m) => C_im.
+  - have: Ordinal lt_im1 = ord_max by apply val_inj.
+    by move: ne_oiom => /[swap] -> ; rewrite eqxx.
+  - have lt_im : i < m by lia. exists (Ordinal lt_im).
+    by apply val_inj.
+Qed.
+
+Lemma openS_near_cap m (P : set 'I_m) S x :
+  (forall i, P i -> openS_near (S i) x) -> 
+  openS_near (\bigcap_(i in P) S i) x.
+Proof. 
+  elim: m S P => [|m IH] S1 P1 Oi.
+    exists (GRing.one (Num.NumDomain.ringType R)) => // y _ i.
+    by rewrite (set_ord0 P1) /=.
+  pose S0 := (fun i : 'I_m => S1 (widen_ord (leqnSn m) i)).
+  pose P0 := [set i | P1 (widen_ord (leqnSn m) i)].
+  have Oi' : forall i : 'I_m, P0 i -> openS_near (S0 i) x => [i|].
+    by rewrite /P0 /S0 /= ; apply Oi.
+  move: (Oi ord_max) (IH S0 P0 Oi') ; rewrite /openS_near /= => Om {}IH.
+  case: (asboolP (P1 ord_max)) IH => P1om [e1 lt_0e1 IH] ;
+  [move: P1om=> /Om [e2 lt_0e2 {}Om]|pose e2 := e1] ;
+  exists (Num.min e1 e2) ; (try by case: (Num.Theory.ltrP e1 e2)) ;
+  rewrite /bigcap /= => y /le_min/andP[le_De1 le_De2] i P1i ;
+  move: (IH y le_De1) ; rewrite /bigcap /= => {}IH ;
+  case: (i =P ord_max) ; [by move-> ; apply Om| |by move: P1i=> /[swap] -> /P1om|] 
+    => /eqP /widen_ord_ante[j Hij] ;
+  by rewrite Hij ; apply IH ; rewrite /P0 /= -Hij.
+Qed.
 
 Lemma openS_cap m (P : set 'I_m) S :
   (forall i, P i -> openS (S i)) -> openS (\bigcap_(i in P) S i).
 Proof. 
-  elim: m P S => [|m IH] P S.
-    by rewrite (set_ord0 P) bigcap_set0 => _ ; apply openS_setT.
-  move=> HO. rewrite bigcap_mkcond. 
-  (*Check bigcap_ord_recr.
-  rewrite (@bigcap_ord_recr point m).*)
-  
-Admitted.
+  rewrite /bigcap /openS /= => Oi x Sx.
+  by apply openS_near_cap => i Pi ; apply Oi, Sx.
+Qed.
 
 Lemma openS_Non_hplane (h : hplane) s : s != On -> openS (hpoints s h).
-Proof. Admitted.
+Proof. 
+  rewrite /openS /openS_near => Non x shx.
+  pose V := h^C%MS. Search proj_mx.
+  move: (@add_proj_mx _ _ _ h V x) => decomp ; feed_n 2 decomp.
+    by rewrite /V capmx_compl.
+    by apply submx_full, addsmx_compl_full.
+Admitted.
   
 Lemma openS_Non (f : face) : 
   let P := [set i | tnth f i == On] in
@@ -213,7 +249,7 @@ Lemma submx_lin (x y : point) (l : R) (M : 'M[R]_d) :
   ((x + l%:M *m y)%R <= M)%MS -> (l > 0)%R -> (x <= M)%MS -> (y <= M)%MS.
 Proof. Admitted.
 
-Lemma dim_lb (f : face) : nempty f -> dim f >= d - count (xpred1 On) f.
+Lemma fdim_lb (f : face) : nempty f -> dim f >= d - count (xpred1 On) f.
 Proof.
   move=> NEf. apply inf_ge ; last first.
     by apply image_nonempty ; exists 1%:M%R => /= ; rewrite Mpoints_id ; apply subsetT.
@@ -248,14 +284,71 @@ Section SimpleArrangement.
  * contain the origin, a simple arrangement can only have 
  * at most d hyperplanes. To simplify I also suppose that n = d. *)
 Hypothesis eq_nd : n = d.
-Definition simple := \rank (\bigcap_(i : 'I_n) tnth H i) == 0.
+Definition simple := \rank (\bigcap_(i : 'I_n) tnth H i) = 0.
 Hypothesis sH : simple.
 
-Lemma hcap_rank_eq (P : set 'I_n) : 
-  \rank (\bigcap_(i in P) tnth H i) = d - #|P|.
+Lemma card_eq0_set0 (T : finType) (P : set T) : #|P| = 0 -> P =set0.
 Proof. Admitted.
 
-Lemma dim_ub f : dim f <= d - count (xpred1 On) f.
+Lemma card_set0 (T : finType) : #|@set0 T| = 0.
+Proof. Admitted.
+
+Lemma card_eqT_setT (T : finType) (P : set T) : #|P| = #|T| -> P = setT.
+Proof. Admitted.
+
+Lemma card_setT (T : finType) : #|@setT T| = #|T|.
+Proof. Admitted.
+
+Lemma card_leT (T : finType) (P : set T) : #|P| <= #|T|.
+Proof. Admitted.
+
+Lemma Nin_card_ltT (T : finType) x (P : set T) : x \notin P -> #|P| < #|T|.
+Proof. 
+  move=> N_Px.
+  apply contraT ; rewrite -ltnNge ltnS => le_TP.
+  have /eqP eq_TP : #|P| == #|T| by rewrite eqn_leq (card_leT P) /=.
+  by move: eq_TP N_Px => /card_eqT_setT /= -> ; rewrite in_setT.
+Qed.
+  
+Lemma finset_ind_rev (T : finType) (P : (set T) -> Prop) :
+  P setT -> 
+  (forall x S, x \notin S -> P (x |` S) -> P S) ->
+  (forall S, P S).
+Proof. Admitted.
+
+Lemma set1U_disj_card (T : finType) x (S : set T) :
+  x \notin S -> #|x |` S| = #|S|.+1.
+Proof. Admitted.
+
+Lemma bigcap1U m a i0 (P : set 'I_m) (F : 'I_m -> 'M[R]_a) :
+  (\bigcap_(i in (i0 |` P)) F i = F i0 :&: \bigcap_(i in P) F i)%MS.
+Proof. Admitted.
+
+
+Lemma lia_test (M : 'M[R]_d) (P : set 'I_n) (k : nat) : 0 < d - #|P| -> \rank M <= (d - #|P|.+1) + 1 -> \rank M <= d - #|P|.
+Proof. lia. Qed.
+
+Lemma hplane_cap_eq (P : set 'I_n) : 
+  \rank (\bigcap_(i in P) tnth H i) = d - #|P|.
+Proof. 
+  elim /finset_ind_rev : P => /= [|i0 P N_Px].
+    by under eq_big do [rewrite in_setT|] ; rewrite sH card_setT /= card_ord ; lia.
+  rewrite set1U_disj_card // bigcap1U.
+  remember (\bigcap_(i in P) tnth H i)%MS as M ; rewrite -HeqM => IH.
+  suff: \rank M <= d - #|P|.
+    move: (hplane_cap_lb P) ; rewrite -HeqM => LB UB. 
+    by apply /eqP ; rewrite eqn_leq UB LB.
+  have MHi0C : (M :&: tnth H i0 == tnth H i0 :&: M)%MS by rewrite capmxC submx_refl.
+  move: (Mhcap_rank_lb M (tnth H i0)).
+  move: (Nin_card_ltT N_Px) ; rewrite card_ord [n in _ < n]eq_nd => lt_Pd.
+  rewrite (eqmx_rank MHi0C) IH -(leq_add2r 1) subnK.
+  rewrite -addn1 subnDA subnK //. 
+  rewrite -(leq_add2r #|P|) subnK // ; first by apply ltnW. 
+  rewrite HeqM -(leqRW (hplane_cap_lb P)). 
+  by rewrite -(leq_add2r #|P|) subnK // ; apply ltnW.
+Qed. 
+  
+Lemma fdim_ub f : dim f <= d - count (xpred1 On) f.
 Proof.
   rewrite /dim ; apply inf_le.
   rewrite fpoints_onNon ; 
