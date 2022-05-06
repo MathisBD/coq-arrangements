@@ -36,7 +36,7 @@ Proof. Admitted.
 
 Lemma Csubset1 T (A : set T) x : ([set x] `<=` A) = (x \in A).
 Proof. by apply propext ; rewrite /subset /= in_setE ; split => [/(_ x (Logic.eq_refl _)) | Ax t ->]. Qed.
-  
+
 Lemma finset_ind_rev (T : finType) (P : (set T) -> Prop) :
   P setT -> 
   (forall x S, x \notin S -> P (x |` S) -> P S) ->

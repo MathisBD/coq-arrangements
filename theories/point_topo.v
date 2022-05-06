@@ -1,11 +1,13 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 From mathcomp.analysis Require Import reals classical_sets boolp.
-From mathcomp Require Import zify.
+From mathcomp Require Import zify algebra_tactics.ring.
 Require Import tactics csets_extras.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
+
+Import GRing.Theory Num.Theory.
 Open Scope classical_set_scope.
 Open Scope real_scope.
 
@@ -18,13 +20,84 @@ Variables (R : realType) (d : nat).
 Notation point := 'M[R]_(1, d).
 
 Section EuclidNorm.
+Implicit Types (x y : point) (s t : R).
+Open Scope ring_scope.
 
-Definition norm (x : point) : R := Num.sqrt ((x *m x^T)%R ord0 ord0). 
-Lemma norm_scalarMl x (s : R) : (s >= 0)%R -> norm (s%:M *m x) = (s * norm x)%R.
-Proof. Admitted.
-Lemma norm_scalarMr x (s : R) : (s >= 0)%R -> norm (x *m s%:M) = (s * norm x)%R.
-Proof. Admitted.
+Lemma trmx_scale x s : (s *: x)^T = s *: x^T.
+Proof. by rewrite -mul_mx_scalar trmx_mul tr_scalar_mx mul_scalar_mx. Qed.
 
+Lemma scale_mulmx m1 m2 m3 (A : 'M_(m1, m2)) (B : 'M_(m2, m3)) s t : 
+  s *: A *m (t *: B) = (s * t) *: (A *m B).
+Proof. 
+  rewrite -!mul_scalar_mx scalar_mxM.
+  rewrite mulmxA [in RHS]mulmxA ; congr (_ *m _).
+  by rewrite -mulmxA scalar_mxC mulmxA.
+Qed.
+
+Definition norm (x : point) : R := Num.sqrt ((x *m x^T) ord0 ord0). 
+
+Lemma norm_scalel x (s : R) : norm (s *: x) = `|s| * norm x.
+Proof. 
+  rewrite /norm trmx_scale scale_mulmx mxE -expr2 sqrtrM.
+  by rewrite sqrtr_sqr.
+  by rewrite sqr_ge0.
+Qed.
+
+Lemma norm_scaler x (s : R) : norm (s *: x) = norm x * `|s|.
+Proof. by rewrite norm_scalel mulrC. Qed.
+
+Lemma sumr_ge0if (I : finType) (P : pred I) (E : I -> R) :
+  (forall i, P i -> 0 <= E i)%R -> 
+  (0 <= \sum_(i | P i) E i ?= iff [forall i, P i ==> (E i == 0)])%R.
+Proof. 
+  move=> Hle0 ; split ; first by apply big_ind => // x y ; apply addr_ge0.
+  apply /eqP ; case: ifP => [/forallP Heq0|]. 
+  - apply big_ind => //.
+    by move=> x y <- <- ; rewrite addr0.
+    by move=> i Pi ; symmetry ; apply /eqP ; apply (implyP (Heq0 i)).
+  - move /negbT ; rewrite negb_forall => /existsP[i0].
+    rewrite negb_imply => /andP[Pi0 Ei0_neq0].
+    suff: \sum_(i | P i) E i > 0 by move /lt0r_neq0 /eqP ; intuition.
+    have Ei0_gt0 : E i0 > 0 by rewrite Order.POrderTheory.lt_def Ei0_neq0 Hle0. clear Ei0_neq0.
+    rewrite (bigID (xpred1 i0)) /= ; apply ltr_paddr.
+      by apply big_ind => // [x y | i /andP[Pi _]] ; [apply addr_ge0 | auto].
+      have cond i : P i && (i == i0) = (i == i0).
+        apply /eqP ; rewrite eq_sym -eqbE /eqb /addb. 
+        case: ifP => /= [/negbTE ->|/negbT].
+        + by rewrite andbF. 
+        + by rewrite negbK => /eqP -> ; apply /andP ; intuition.
+      by under eq_big do [rewrite cond|] ; rewrite big_pred1_eq.
+Qed.
+
+Lemma norm_ge0if x : (0 <= norm x ?= iff (x == 0))%R.
+Proof. 
+  split ; first by rewrite sqrtr_ge0.
+  apply /idP ; case: ifP => [/eqP ->|].
+    by rewrite /norm mul0mx mxE sqrtr0.
+  move /negbT => H ; apply /idP ; move: H ; apply contra.
+  rewrite eq_sym /norm sqrtr_eq0 => xxT_le0.
+  apply /eqP ; apply matrixP => i j ; rewrite mxE.
+  have: i = 0 by case: i => [i Hi] ; apply val_inj => /= ; lia. move->.
+  have xxT_ge0 : (x *m x^T) ord0 ord0 >= 0.
+    by rewrite mxE ; apply sumr_ge0if => k _ ; rewrite mxE -expr2 sqr_ge0.
+  have xxT_eq0 : (x *m x^T) ord0 ord0 == 0.
+    by rewrite Order.POrderTheory.eq_le xxT_le0 xxT_ge0.
+  clear xxT_ge0 xxT_le0 ; move: xxT_eq0.
+  rewrite mxE eq_sym sumr_ge0if /= ; last first => [k _ | /forallP /(_ j)].
+    by rewrite mxE -expr2 sqr_ge0.
+  by rewrite mxE -expr2 sqrf_eq0 => /eqP ->. 
+Qed.
+
+Lemma norm0 : norm 0 = 0.
+Proof. 
+  move: (eqxx (GRing.zero (matrix_zmodType R 1 d))). 
+  by rewrite -norm_ge0if eq_sym => /eqP.
+Qed. 
+
+Lemma normN x : norm (-x) = norm x.
+Proof. by rewrite -scaleN1r norm_scalel normrN1 mul1r. Qed.
+
+Close Scope ring_scope.
 End EuclidNorm.
 
 Section OpenSets.
@@ -37,7 +110,21 @@ Definition openS S := {in S, forall x, openS_near S x }.
 
 Lemma openS_near_scale S x u : 
   openS_near S x -> exists2 l, (l > 0)%R & S (x + l%:M *m u)%R.
-Proof. Admitted.
+Proof. 
+  rewrite /openS_near /= => [[eps eps_gt0 Heps]].
+  case: (u =P 0)%R => [->|neq_u0].
+    exists (GRing.one (Num.NumDomain.ringType R)) => //.
+    rewrite mulmx0 addr0 ; apply Heps.
+    by rewrite subrr norm0 ; apply Order.POrderTheory.ltW.
+  have l_gt0 : (0 < eps / norm u)%R.
+    apply mulr_gt0 ; rewrite ?invr_gt0 //.
+    move: neq_u0=> /eqP ; apply contraR ; rewrite -Order.TotalTheory.leNgt => H.
+    by rewrite -norm_ge0if Order.POrderTheory.eq_le H norm_ge0if.
+  exists (eps / norm u)%R => //.
+  apply Heps ; rewrite opprD addrA subrr sub0r normN mul_scalar_mx norm_scalel.
+  rewrite gtr0_norm // -mulrA mulVr ?mulr1 //.
+  by rewrite unitfE eq_sym norm_ge0if ; apply /eqP.
+Qed.
 
 Lemma openS_setT : openS (@setT point).
 Proof. 
@@ -66,7 +153,7 @@ Qed.
 Lemma openS_near_cap m (P : set 'I_m) F x :
   (forall i, P i -> openS_near (F i) x) -> 
   openS_near (\bigcap_(i in P) F i) x.
-Proof. 
+Proof.
   elim: m F P => [|m IH] F1 P1 Oi.
     exists (GRing.one (Num.NumDomain.ringType R)) => // y _ i.
     by rewrite (set_ord0 P1) /=.
