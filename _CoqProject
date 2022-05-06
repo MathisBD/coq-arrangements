@@ -1,3 +1,5 @@
 -R . MyProofs
-tactics.v
-arrangements.v
+theories/tactics.v
+theories/csets_extras.v
+theories/point_topo.v
+theories/arrangements.v
