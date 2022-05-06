@@ -44,6 +44,7 @@ Canonical sign_countType := CountType sign sign_countMixin.
 Definition sign_finMixin := CanFinMixin I3_of_signK.
 Canonical sign_finType := FinType sign sign_finMixin.
 
+
 Lemma rank_hplaneC (h : hplane) : \rank h^C%MS = 1.
 Proof. by rewrite mxrank_compl hplane_rank ; lia. Qed.
 
@@ -69,16 +70,22 @@ Definition clfpoints (f : face) : set point :=
   \bigcap_i (hpoints (tnth f i) (tnth H i) `|` hpoints On (tnth H i)).
 Definition nempty (f : face) : Prop := fpoints f !=set0.
 
+Lemma in_fpointsE f x : 
+  x \in fpoints f <-> forall i, hside x (tnth H i) = tnth f i.
+Proof. Admitted.
+
+Lemma in_clfpointsE f x : x \in clfpoints f <-> 
+  forall i, hside x (tnth H i) = tnth f i \/ hside x (tnth H i) = On.
+Proof. Admitted.
+
 Definition dim f : nat := infimum 0 (mxrank @` [set M : 'M[R]_d | fpoints f `<=` Mpoints M]).
 
+Lemma dim_led f : dim f <= d.
+Proof. 
+  apply inf_le ; exists d => //= ; exists 1%:M%R ; last by rewrite mxrank1.
+  by rewrite /Mpoints ; under eq_set do rewrite submx1 /=.
+Qed.
 
-Lemma fpoints_onNon f :
-  let P := [set i | tnth f i == On] in
-  fpoints f =
-    Mpoints (\bigcap_(i | i \in P) tnth H i)%MS `&`  
-    \bigcap_(i in ~`P) hpoints (tnth f i) (tnth H i).
-Proof. Admitted.
-    
 (* This would be the most natural definition of a subface :
 Definition subfaceT f g := 
   (dim g = (dim f).+1) /\ (fpoints f `<=` closure (fpoints g)).
@@ -91,6 +98,16 @@ Lemma clfpointsE g : nempty g -> closure (fpoints g) `<=>` clfpoints g.
 (* This is a more convenient definition of subface : we will only work with this one. *)
 Definition subface f g : Prop := 
   (dim g = (dim f).+1) /\ (fpoints f `<=` clfpoints g).
+
+Lemma face_incl f g : fpoints f `<=` clfpoints g <-> forall i, tnth f i = On \/ tnth f i = tnth g i.
+Proof. Admitted. 
+  
+Lemma fpoints_onNon f :
+  let P := [set i | tnth f i == On] in
+  fpoints f =
+    Mpoints (\bigcap_(i | i \in P) tnth H i)%MS `&`  
+    \bigcap_(i in ~`P) hpoints (tnth f i) (tnth H i).
+Proof. Admitted.
 
 Lemma is_true_inj : injective is_true.
 Proof. 
@@ -149,7 +166,7 @@ Lemma submx_lin (x y : point) (l : R) (M : 'M[R]_d) :
   ((x + l%:M *m y)%R <= M)%MS -> (l > 0)%R -> (x <= M)%MS -> (y <= M)%MS.
 Proof. Admitted.
 
-Lemma fdim_lb (f : face) : nempty f -> dim f >= d - count (xpred1 On) f.
+Theorem fdim_lb (f : face) : nempty f -> dim f >= d - count (xpred1 On) f.
 Proof.
   move=> NEf. apply inf_ge ; last first.
     by apply image_nonempty ; exists 1%:M%R => /= ; rewrite Mpoints_id ; apply subsetT.
@@ -177,22 +194,25 @@ Proof.
   by rewrite HeqK hplane_cap_lb.
 Qed.
 
+Definition simple := \rank (\bigcap_(i : 'I_n) tnth H i) = 0.
+
+Theorem nempty_face_count (k : nat) : 
+  #|[set f | (dim f == k) && `[< nempty f >]]| 
+    <= \sum_(i < k.+1) 'C(d-i, k-i) * 'C(n, d-i)
+    ?= iff `[< simple >].
+Proof. Admitted.
+
 
 Section SimpleArrangement.
-
 (* Since I only study arrangements in which all hyperplanes 
  * contain the origin, a simple arrangement can only have 
  * at most d hyperplanes. To simplify I also suppose that n = d. *)
 Hypothesis eq_nd : n = d.
-Definition simple := \rank (\bigcap_(i : 'I_n) tnth H i) = 0.
 Hypothesis sH : simple.
 
 Lemma bigcap1U m a i0 (P : set 'I_m) (F : 'I_m -> 'M[R]_a) :
   (\bigcap_(i in (i0 |` P)) F i = F i0 :&: \bigcap_(i in P) F i)%MS.
 Proof. Admitted.
-
-Lemma lia_test (M : 'M[R]_d) (P : set 'I_n) (k : nat) : 0 < d - #|P| -> \rank M <= (d - #|P|.+1) + 1 -> \rank M <= d - #|P|.
-Proof. lia. Qed.
 
 Lemma hplane_cap_eq (P : set 'I_n) : 
   \rank (\bigcap_(i in P) tnth H i) = d - #|P|.
@@ -214,10 +234,9 @@ Proof.
   by rewrite -(leq_add2r #|P|) subnK // ; apply ltnW.
 Qed. 
   
-Lemma fdim_ub f : dim f <= d - count (xpred1 On) f.
+Theorem fdim_ub f : dim f <= d - count (xpred1 On) f.
 Proof.
-  rewrite /dim ; apply inf_le.
-  rewrite fpoints_onNon ; 
+  rewrite /dim ; apply inf_le ; rewrite fpoints_onNon ; 
   remember [set i | tnth f i == On] as P ; rewrite -HeqP ;
   remember (\bigcap_(i in P) tnth H i)%MS as M.
   exists (\rank M).
@@ -227,9 +246,50 @@ Proof.
 Qed.
 
 
-Lemma dim_eq f : nempty f -> dim f = d - count (xpred1 On) f.
+Theorem dimE f : nempty f -> dim f = d - count (xpred1 On) f.
 Proof. by move=> NEf ; apply /eqP ; rewrite eqn_leq fdim_ub fdim_lb. Qed.
+
+Lemma size_enum_sign : size (enum sign_finType) = 3.
+Proof. Admitted.
+
+Lemma face_count : #|[set: face]| = 3 ^ d.
+Proof. by rewrite card_setT /= card_tuple eq_nd cardE size_enum_sign. Qed.
+
+Lemma dimk_nemptyf_count (k : nat) : 
+  #|[set f | (dim f == k) && `[< nempty f >]]| = 'C(d, k) * 2 ^ k.
+Proof. Admitted.
+
+Lemma total_nemptyf_count : #|[set f | `[< nempty f >]]| = 3 ^ d.
+Proof. 
+  pose F (k : 'I_d.+1) := [set f | dim f == k].
+  rewrite [[set f | `[< nempty f >]]](@bigcap_decomp _ _ F).
+  suff : disjointS F => [/(@disjointS_capl _ _ [set f | `[< nempty f >]]) /asboolP |].
+    rewrite -card_bigcup_leif => /eqP ->.
+    rewrite /F. Search setI mkset. 
+    under eq_big do [|rewrite setIC -set_andb dimk_nemptyf_count].
+    under eq_big => [i|i _] do [|rewrite -[2 ^ i]mul1n -{1}(exp1n (d - i))].
+    by rewrite -Pascal.
+  rewrite /disjointS => i j neq_ij ; apply /eqP.
+  apply contraT => /set0P[f] /= []. 
+  by rewrite /F /= => /eqP -> /eqP /ord_inj eq_ij ; rewrite eq_ij eqxx in neq_ij.
+  move=> f _ ; rewrite /bigcup /= ; exists (inord (dim f)) => //.
+  by rewrite /F inordK //= ltnS dim_led.
+Qed.
+
+Lemma g_equal aT rT (f g : aT -> rT) : f = g -> forall x, f x = g x.
+Proof. Admitted.
+
+Theorem all_nempty f : nempty f.
+Proof.
+  move: total_face_count => /eqP. 
+  rewrite -face_count card_setT card_leTif /= => /eqP /g_equal /= P.
+  by apply /asboolP ; rewrite P.
+Qed.
+
+Theorem subfaceE f g : subface f g <-> exists i, [/\ tnth f i == On, tnth g i != On & forall j, j != i -> tnth f i = tnth g i].
+Proof. Admitted.
 
 End SimpleArrangement.
 
 End Arrangement.
+

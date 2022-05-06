@@ -44,16 +44,27 @@ Lemma finset_ind_rev (T : finType) (P : (set T) -> Prop) :
 Proof. Admitted.
 
 
+Definition disjointS n T (F : 'I_n -> set T) := forall i j, i != j -> F i `&` F j =set0.
+
+Lemma disjointS_capl n T S (F : 'I_n -> set T) :
+  disjointS F -> disjointS (fun i => S `&` F i).
+Proof. Admitted.
+
+Lemma disjointS_capr n T S (F : 'I_n -> set T) :
+  disjointS F -> disjointS (fun i => F i `&` S).
+Proof. Admitted.
+
+Lemma bigcap_decomp n T (F : 'I_n -> set T) S :
+  S `<=` \bigcup_i F i -> S = \bigcup_i (S `&` F i).
+Proof. Admitted.
 
 Section CardSet.
-
 Variables (T : finType).
 Implicit Types (S : set T).
 
 Lemma card_set_sum S : 
   #|S| = \sum_i (i \in S).
 Proof. Admitted.
-
 
 Lemma card0_set0 S : (#|S| == 0) = (S == set0).
 Proof. 
@@ -69,9 +80,8 @@ Qed.
 Lemma card_set0 : #|@set0 T| = 0.
 Proof. by apply /eqP ; rewrite (card0_set0 set0) eqxx. Qed.
 
-
 Lemma card_setT : #|@setT T| = #|T|.
-Proof. Admitted.
+Proof. by rewrite card_set_sum ; under eq_big do [|rewrite in_setT /=] ; rewrite sum1_card. Qed.
 
 Lemma card_leTif S : #|S| <= #|T| ?= iff (S == setT).
 Proof.
@@ -111,5 +121,9 @@ f_equal.
   + move=> i lt_in. rewrite (nth_map (Ordinal lt_in)) ?size_enum_ord //.
     by rewrite (tnth_nth x) ; f_equal ; rewrite nth_enum_ord //.
 Qed.
+
+Lemma card_bigcup_leif n (F : 'I_n -> set T) :
+  #|\bigcup_i F i| <= \sum_i #|F i| ?= iff `[< disjointS F >].
+Proof. Admitted.
 
 End CardSet.
