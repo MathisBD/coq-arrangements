@@ -44,6 +44,7 @@ Lemma finset_ind_rev (T : finType) (P : (set T) -> Prop) :
 Proof. Admitted.
 
 
+
 Section CardSet.
 
 Variables (T : finType).
@@ -53,27 +54,45 @@ Lemma card_set_sum S :
   #|S| = \sum_i (i \in S).
 Proof. Admitted.
 
-Lemma card_eq0_set0 S : #|S| = 0 -> S =set0.
-Proof. Admitted.
+
+Lemma card0_set0 S : (#|S| == 0) = (S == set0).
+Proof. 
+  apply /eqP ; case: ifP => [/eqP ->|/negbT /set0P[x Sx]].
+  - rewrite card_set_sum. apply big_ind => // [x y -> -> //| i _].
+    by rewrite in_set0 /=.
+  - suff: #|S| > 0 by move=> /lt0n_neq0 /eqP.
+    rewrite card_set_sum (bigID [pred i | i == x]) /=.
+    rewrite addn_gt0 ; apply /orP ; left ; rewrite big_pred1_eq.
+    by rewrite lt0b in_setE.
+Qed.
 
 Lemma card_set0 : #|@set0 T| = 0.
-Proof. Admitted.
+Proof. by apply /eqP ; rewrite (card0_set0 set0) eqxx. Qed.
 
-Lemma card_eqT_setT S : #|S| = #|T| -> S = setT.
-Proof. Admitted.
 
 Lemma card_setT : #|@setT T| = #|T|.
 Proof. Admitted.
 
-Lemma card_leT S : #|S| <= #|T|.
-Proof. Admitted.
+Lemma card_leTif S : #|S| <= #|T| ?= iff (S == setT).
+Proof.
+  rewrite -card_setT !card_set_sum ; split.
+  - by apply leq_sum => i _ ; rewrite in_setT /= leq_b1.
+  - rewrite (@leqif_sum _ _ [pred i | i \in S]) /= ; last first => [i _|].
+    + by rewrite in_setT /= ; split ; [rewrite leq_b1 | case: (i \in S)].
+    + symmetry ; apply /eqP ; case: ifP => [/forallP H | /negbT].
+      * apply funext => x /= ; move: (implyP (H x) (eq_refl true)).
+        rewrite in_setE => Sx ; apply propext ; intuition.
+      * rewrite negb_forall => /existsP[x] ; rewrite negb_imply /= => N_Sx ST.
+        have Sx : x \in S by rewrite in_setE ST /=.
+        by move: Sx N_Sx => ->.
+Qed.
 
 Lemma Nin_card_ltT x S : x \notin S -> #|S| < #|T|.
 Proof. 
   move=> N_Px.
   apply contraT ; rewrite -ltnNge ltnS => le_TP.
-  have /eqP eq_TP : #|S| == #|T| by rewrite eqn_leq (card_leT S) /=.
-  by move: eq_TP N_Px => /card_eqT_setT /= -> ; rewrite in_setT.
+  have /eqP eq_TP : #|S| == #|T| by rewrite eqn_leq (card_leTif S) /=.
+  by move: eq_TP N_Px => /eqP ; rewrite card_leTif => /eqP -> ; rewrite in_setT.
 Qed.
 
 Lemma set1U_disj_card x S :
