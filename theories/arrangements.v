@@ -72,7 +72,10 @@ Definition nempty (f : face) : Prop := fpoints f !=set0.
 
 Lemma in_fpointsE f x : 
   x \in fpoints f <-> forall i, hside x (tnth H i) = tnth f i.
-Proof. Admitted.
+Proof. 
+  
+
+Admitted.
 
 Lemma in_clfpointsE f x : x \in clfpoints f <-> 
   forall i, hside x (tnth H i) = tnth f i \/ hside x (tnth H i) = On.
@@ -145,8 +148,6 @@ Proof.
   by apply eq_big => [//|i _] ; f_equal ; apply is_true_inj ; rewrite !in_setE /= in_setE.
 Qed.
 
-
-
 Lemma openS_Non_hplane (h : hplane) s : s != On -> openS (hpoints s h).
 Proof. 
   rewrite /openS /openS_near => Non x shx.
@@ -196,7 +197,9 @@ Qed.
 
 Definition simple := \rank (\bigcap_(i : 'I_n) tnth H i) = 0.
 
-Theorem nempty_face_count (k : nat) : 
+(* I will likely not show this theorem, see "Algorithms in Combinatorial Geometry"
+ * by Edelsbrunner, Theorem 1.3. *)
+Theorem nempty_face_count (k : 'I_d.+1) : 
   #|[set f | (dim f == k) && `[< nempty f >]]| 
     <= \sum_(i < k.+1) 'C(d-i, k-i) * 'C(n, d-i)
     ?= iff `[< simple >].
@@ -255,18 +258,51 @@ Proof. Admitted.
 Lemma face_count : #|[set: face]| = 3 ^ d.
 Proof. by rewrite card_setT /= card_tuple eq_nd cardE size_enum_sign. Qed.
 
-Lemma dimk_nemptyf_count (k : nat) : 
+Lemma factM_dvdn_fact i k : i <= k -> i`! * (k - i)`! %| k`!.
+Proof. by move=> le_ik ; apply /dvdnP ; exists 'C(k, i) ; rewrite bin_fact. Qed.
+
+Lemma binomM_eq (k : 'I_d.+1) (i : 'I_k.+1) :  
+  'C(d-i, k-i) * 'C(d, d-i) = 'C(d, k) * 'C(k, i).
+Proof.
+  case: i => /= ; case: k => /= k le_kd i le_ik.
+  move: le_ik le_kd ; rewrite !ltnS.
+  case: (ltnP 0 k) ; last first.
+    rewrite leqn0 => /eqP->. rewrite leqn0 => /eqP-> _.
+    by rewrite !subn0 !bin0 binn.
+  case: (ltnP i d) ; last first => [leq_di _ le_ik le_kd|lt_id lt_0k le_ik le_kd].
+    have : i = d /\ k = d by lia. move=> [-> ->].
+    by rewrite !subnn !bin0 !binn.
+  rewrite !bin_factd ; [| try lia ..].
+  have: d - (d - i) = i by lia. move->.
+  have: d - i - (k - i) = d - k by lia. move->.
+  rewrite !divn_mulAC. rewrite !muln_divA. rewrite -!divnMA.
+  rewrite -mulnA divnMl ?fact_gt0 //. 
+  rewrite [k`! * (d - k)`!]mulnC [in RHS]mulnA divnMr ?fact_gt0 //.
+  congr (_ %/ _) ; lia.
+  - by rewrite factM_dvdn_fact ; try lia.
+  - by rewrite mulnC factM_dvdn_fact ; try lia.
+  - by rewrite factM_dvdn_fact ; try lia.
+  - have: d - i - (k - i) = d - k by lia. move<-.
+    by rewrite factM_dvdn_fact ; try lia.
+Qed.
+
+Lemma dimk_nemptyf_count (k : 'I_d.+1) :
   #|[set f | (dim f == k) && `[< nempty f >]]| = 'C(d, k) * 2 ^ k.
-Proof. Admitted.
+Proof. 
+  move: sH => /asboolP ; rewrite -(nempty_face_count k) => /eqP->.
+  rewrite eq_nd ; under eq_big do [|rewrite binomM_eq].
+  rewrite -big_distrr /= ; congr (_ * _).
+  rewrite -[2]/(1 + 1) Pascal ; apply eq_bigr => i _.
+  by rewrite !exp1n !muln1.
+Qed.
 
 Lemma total_nemptyf_count : #|[set f | `[< nempty f >]]| = 3 ^ d.
 Proof. 
   pose F (k : 'I_d.+1) := [set f | dim f == k].
   rewrite [[set f | `[< nempty f >]]](@bigcap_decomp _ _ F).
   suff : disjointS F => [/(@disjointS_capl _ _ [set f | `[< nempty f >]]) /asboolP |].
-    rewrite -card_bigcup_leif => /eqP ->.
-    rewrite /F. Search setI mkset. 
-    under eq_big do [|rewrite setIC -set_andb dimk_nemptyf_count].
+    rewrite -card_bigcup_leif /F => /eqP ->.
+    under eq_big do [|rewrite setIC -set_andb dimk_nemptyf_count]. 
     under eq_big => [i|i _] do [|rewrite -[2 ^ i]mul1n -{1}(exp1n (d - i))].
     by rewrite -Pascal.
   rewrite /disjointS => i j neq_ij ; apply /eqP.
@@ -281,7 +317,7 @@ Proof. Admitted.
 
 Theorem all_nempty f : nempty f.
 Proof.
-  move: total_face_count => /eqP. 
+  move: total_nemptyf_count => /eqP. 
   rewrite -face_count card_setT card_leTif /= => /eqP /g_equal /= P.
   by apply /asboolP ; rewrite P.
 Qed.
