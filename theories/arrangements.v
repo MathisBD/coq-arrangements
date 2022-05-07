@@ -70,16 +70,22 @@ Definition clfpoints (f : face) : set point :=
   \bigcap_i (hpoints (tnth f i) (tnth H i) `|` hpoints On (tnth H i)).
 Definition nempty (f : face) : Prop := fpoints f !=set0.
 
-Lemma in_fpointsE f x : 
-  x \in fpoints f <-> forall i, hside x (tnth H i) = tnth f i.
-Proof. 
-  
+Lemma fpointsP f x : 
+  reflect (forall i, hside x (tnth H i) = tnth f i) (x \in fpoints f).
+Proof.
+  apply (iffP idP) ; rewrite /fpoints /bigcap in_setE /= => P i.
+  - by move: (P i I) ; rewrite /hpoints /= => /eqP.
+  - by rewrite /hpoints /= P.
+Qed.
 
-Admitted.
-
-Lemma in_clfpointsE f x : x \in clfpoints f <-> 
-  forall i, hside x (tnth H i) = tnth f i \/ hside x (tnth H i) = On.
-Proof. Admitted.
+Lemma clfpointsP f x :
+  reflect (forall i, hside x (tnth H i) = tnth f i \/ hside x (tnth H i) = On)
+    (x \in clfpoints f).
+Proof.
+  apply (iffP idP) ; rewrite /clfpoints /bigcap in_setE /= => P i.
+  - by move: (P i I) ; rewrite /hpoints /= ; move=> [/eqP->|/eqP->] ; auto.
+  - by rewrite /hpoints /= ; case: (P i) => -> ; auto.
+Qed.
 
 Definition dim f : nat := infimum 0 (mxrank @` [set M : 'M[R]_d | fpoints f `<=` Mpoints M]).
 
@@ -102,9 +108,19 @@ Lemma clfpointsE g : nempty g -> closure (fpoints g) `<=>` clfpoints g.
 Definition subface f g : Prop := 
   (dim g = (dim f).+1) /\ (fpoints f `<=` clfpoints g).
 
-Lemma face_incl f g : fpoints f `<=` clfpoints g <-> forall i, tnth f i = On \/ tnth f i = tnth g i.
-Proof. Admitted. 
-  
+Lemma face_inclP f g : nempty f -> 
+  reflect (fpoints f `<=` clfpoints g) [forall i, (tnth f i == On) || (tnth f i == tnth g i)].
+Proof.
+  move=> NE_f ; apply (iffP idP) => [/forallP P x|].
+  - rewrite -in_setE => /fpointsP Hf.
+    rewrite -in_setE ; apply /clfpointsP => i.
+    by rewrite Hf ; case: (orP (P i)) => /eqP ; intuition.
+  - move: NE_f => [x fx] /(_ x fx) Hg ; apply /forallP => i.
+    move: fx ; rewrite -in_setE => /fpointsP /(_ i) Hf.
+    move: Hg ; rewrite -in_setE => /clfpointsP /(_ i).
+    by rewrite Hf ; move=> [->|->] ; rewrite eqxx ?orbT ?orTb. 
+Qed.
+
 Lemma fpoints_onNon f :
   let P := [set i | tnth f i == On] in
   fpoints f =
@@ -313,7 +329,7 @@ Proof.
 Qed.
 
 Lemma g_equal aT rT (f g : aT -> rT) : f = g -> forall x, f x = g x.
-Proof. Admitted.
+Proof. by move->. Qed.
 
 Theorem all_nempty f : nempty f.
 Proof.
@@ -322,8 +338,48 @@ Proof.
   by apply /asboolP ; rewrite P.
 Qed.
 
-Theorem subfaceE f g : subface f g <-> exists i, [/\ tnth f i == On, tnth g i != On & forall j, j != i -> tnth f i = tnth g i].
-Proof. Admitted.
+Lemma tuple_count_eq1 m (T : eqType) (f g : m.-tuple T) a : 
+  (exists i, [/\ tnth f i == a, tnth g i != a & forall j, j != i -> tnth f j = tnth g j]) <->
+    (count (xpred1 a) f = (count (xpred1 a) g).+1 /\ 
+    forall i, (tnth f i != tnth g i) ==> (tnth f i == a)).
+Proof. 
+Admitted.
+
+Lemma tuple_count_size m (T : eqType) (t : m.-tuple T) x :
+  count (xpred1 x) t <= m.
+Proof.
+  rewrite (leqRW (@count_size _ _ t)).
+  by case: t => t /eqP st /= ; rewrite st leqnn.
+Qed.
+     
+Lemma dim_eqk f g k : dim g = dim f + k <-> 
+  count (xpred1 On) f = count (xpred1 On) g + k.
+Proof.    
+  rewrite !dimE ; [|by apply all_nempty ..] ; split ; last first.
+  - move=> P ; rewrite P subnDA subnK //.
+    have: count (xpred1 On) f <= d by rewrite -eq_nd ; apply tuple_count_size.
+    by lia. 
+  - have: count (xpred1 On) f <= d by rewrite -eq_nd ; apply tuple_count_size.
+    have: count (xpred1 On) g <= d by rewrite -eq_nd ; apply tuple_count_size.
+    by lia.
+Qed.
+
+Theorem subfaceE f g : subface f g <-> exists i, [/\ tnth f i == On, tnth g i != On & forall j, j != i -> tnth f j = tnth g j].
+Proof. 
+  split ; last first => [Hfg | []].
+  - rewrite /subface ; split ; last first => [x|]. 
+    + case: Hfg => [i [fi gi fgj]]. 
+      rewrite -in_setE => /fpointsP Hf.
+      rewrite -in_setE ; apply /clfpointsP => j.
+      case: (i =P j) => [<-|/eqP neq_ij] ; first by right ; rewrite Hf (eqP fi).
+      by rewrite Hf -fgj ; [|rewrite eq_sym //] ; left.
+    + rewrite -addn1 ; apply dim_eqk.
+      by move: Hfg ; rewrite tuple_count_eq1 addn1 => [[-> _]].
+  - rewrite -addn1 dim_eqk => Hcount /face_inclP Hincl.
+    feed Hincl ; [by apply all_nempty | do [move=> /forallP /=] in Hincl].
+    apply tuple_count_eq1 ; split => [|i] ; first by rewrite -addn1.
+    by rewrite implyNb orbC Hincl.
+Qed. 
 
 End SimpleArrangement.
 
