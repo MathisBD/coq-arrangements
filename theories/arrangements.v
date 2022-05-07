@@ -338,12 +338,111 @@ Proof.
   by apply /asboolP ; rewrite P.
 Qed.
 
+Lemma tuple2_count_ge m (T : eqType) (f g : m.-tuple T) a :
+  (forall i, (tnth f i != tnth g i) ==> (tnth f i == a)) -> 
+  count (xpred1 a) f >= count (xpred1 a) g.
+Proof. 
+  elim: m f g => [|m IH] f g Hfg.
+    move: f g Hfg => [f /eqP /size0nil Sf] [g /eqP /size0nil Sg] _ /=.
+    by rewrite Sf Sg /=.
+  have Heqf := (tuple_eta f) ; have Heqg := (tuple_eta g).
+  rewrite Heqf Heqg /= /thead.
+  case: (tnth f ord0 =P tnth g ord0) => [->|/eqP].
+  - by rewrite leq_add2l ; apply IH => i ; rewrite !tnth_behead Hfg.
+  - move=> /(implyP (Hfg ord0)) -> /= ; apply leq_add ; first by rewrite leq_b1.
+    by apply IH => i ; rewrite !tnth_behead Hfg.
+Qed.
+
+Lemma tuple_eq_intro1 m (T : eqType) (f g : m.-tuple T) a :
+  (forall i, (tnth f i != tnth g i) ==> (tnth f i == a)) -> 
+  count (xpred1 a) f = count (xpred1 a) g -> f = g.
+Proof. 
+  elim: m f g => [|m IH] f g /= Hfg Hcount.
+    clear Hfg Hcount ; move: f g => [f Sf] [g Sg] /=.
+    apply /eqP ; rewrite -val_eqE /=.
+    by move: Sf Sg => /eqP/size0nil-> /eqP/size0nil->.
+  move: (tuple_eta f) (tuple_eta g) => Heqf Heqg.
+  rewrite Heqf Heqg ; apply /eqP ; rewrite -val_eqE /= eqseq_cons.
+  case: (thead f =P thead g) ; last first => [/eqP fg0 | /= fg0].
+  - have f0 : thead f == a by apply (implyP (Hfg ord0)), fg0.
+    have g0 : thead g != a by rewrite -(eqP f0) eq_sym fg0.
+    apply False_ind.
+    move: Hcount ; rewrite Heqf Heqg /= -[thead g == a]negbK f0 g0 /= add0n.
+    move: (@tuple2_count_ge _ _ (behead_tuple f) (behead_tuple g) a) => bfg_count.
+    feed bfg_count => [i|]. by rewrite !tnth_behead Hfg.
+    move: bfg_count => /[swap] <- /= ; lia.
+  - suff: behead_tuple f = behead_tuple g by move /eqP ; rewrite -val_eqE /=.
+    apply IH => [i|] ; first by rewrite !tnth_behead Hfg.
+    move: Hcount ; rewrite Heqf Heqg /= -fg0.
+    by case: (thead f =P a) => /= _ ; [rewrite !add1n => /succn_inj | rewrite !add0n].
+Qed.
+
 Lemma tuple_count_eq1 m (T : eqType) (f g : m.-tuple T) a : 
   (exists i, [/\ tnth f i == a, tnth g i != a & forall j, j != i -> tnth f j = tnth g j]) <->
     (count (xpred1 a) f = (count (xpred1 a) g).+1 /\ 
     forall i, (tnth f i != tnth g i) ==> (tnth f i == a)).
 Proof. 
-Admitted.
+  split => [[i [fi gi fgj]] | []].
+  - split ; last first => [j|].
+    + apply /implyP ; case: (i =P j) => [<- //|/eqP neq_ij].
+      by rewrite fgj ; [rewrite eqxx|rewrite eq_sym].
+    + elim: m i f g fi gi fgj => /= [[]|m IH i] f g fi gi fgj ; first by lia.
+      move: (tuple_eta f) (tuple_eta g) => Heqf Heqg.
+      rewrite Heqf Heqg /= /thead ; case: (i =P ord0) => [eq_i0|/eqP neq_i0].
+      * rewrite -eq_i0 fi -[tnth g i == a]negbK gi /= add0n add1n ; congr (_.+1).
+        suff: [tuple of behead f] = [tuple of behead g].
+          by move=> /(f_equal (@tval m T)) /= ->.
+        apply /eqP ; rewrite eqEtuple ; apply /forallP => /= j.
+        rewrite !tnth_behead fgj // eq_i0.
+        apply contraT ; rewrite negbK => /eqP /(f_equal val) /=.
+        rewrite inordK // ; case: j => /= ; lia.
+      * rewrite -[in RHS]addn1 -[in RHS]addnA.
+        congr (_ + _) ; first by rewrite fgj // eq_sym. 
+        rewrite addn1.
+        have lt_i1m: i.-1 < m. 
+          case: i neq_i0 fi gi fgj => /= [i Hi] + _ _ _.
+          rewrite -val_eqE /= ; lia.
+        have i11_i: i.-1.+1 = i.
+          case: i neq_i0 lt_i1m fi gi fgj => /= [i Hi] + _ _ _ _.
+          rewrite -val_eqE /= ; lia.
+        apply (IH (Ordinal lt_i1m)) =>[| |j neq_ji1] ; rewrite !tnth_behead ?i11_i ?inord_val //=.
+        apply fgj ; clear fi gi fgj i11_i neq_i0.
+        move: neq_ji1 ; rewrite -!val_eqE /=.
+        case: j => /= [j Hj] ; case: i lt_i1m => /= [i Hi] _.
+        by rewrite inordK ; lia.
+  - elim: m f g => /= [f g Hcount|m IH f g Hcount Hfg].
+      apply False_ind ; move: f g Hcount => [f /eqP /size0nil Hf] [g /eqP /size0nil Hg] /=.
+      by rewrite Hf Hg /=.
+      have Heqf := (tuple_eta f) ; have Heqg := (tuple_eta g).
+      case: (tnth f ord0 =P tnth g ord0) ; last first => [/eqP | fg0].
+    + move=> /[dup] /(implyP (Hfg ord0)) => f0 g0 ; rewrite (eqP f0) eq_sym in g0.
+      exists ord0 ; split => // j neq_j0 ; move: Hcount.
+      rewrite Heqf Heqg /= /thead -[tnth g ord0 == a]negbK f0 g0 /= add0n add1n => /succn_inj Hcount.
+      have lt_j1m : j.-1 < m.
+        by case: j neq_j0 => /= [j Hj] ; rewrite -val_eqE /= ; lia.
+      remember (Ordinal lt_j1m) as j'.
+      have Hjj' : j = lift ord0 j'.
+        case: j neq_j0 lt_j1m j' Heqj' => [j Hj] /= neq_j0 lt_j1m [j' Hj'] /= Heqj'.
+        apply /eqP ; rewrite -!val_eqE /= /bump leq0n /= in neq_j0 *.
+        by move: Heqj' => /eqP ; rewrite -val_eqE /= ; lia.
+      rewrite Hjj' !tnthS ; f_equal.
+      by apply (@tuple_eq_intro1 _ _ _ _ a) => [i|] ; [rewrite !tnth_behead|].
+    + specialize (IH (behead_tuple f) (behead_tuple g)) ; feed_n 2 IH.
+      * by move: Hcount ; rewrite Heqf Heqg /thead fg0 /= ; lia.
+      * by setoid_rewrite tnth_behead.
+      case: IH => [i [bfi bgi bfgj]].
+      exists (lift ord0 i) ; split => [| |[j Hj] /=].
+      * by rewrite Heqf tnthS bfi.
+      * by rewrite Heqg tnthS bgi.
+      * rewrite Heqf Heqg -val_eqE /= /bump /=.
+        case: j Hj => [|j] Hj.
+          have /eqP j0 : Ordinal Hj == ord0 by rewrite -val_eqE /=.
+          by rewrite !j0 !tnth0 /thead fg0.
+        have Hj' : j < m by lia.
+        have: Ordinal Hj = lift ord0 (Ordinal Hj') => [|-> neq_ji].
+          by apply /eqP ; rewrite -val_eqE /= /bump /= add1n.
+        rewrite !tnthS ; apply bfgj ; rewrite -val_eqE /= ; lia.
+Qed.
 
 Lemma tuple_count_size m (T : eqType) (t : m.-tuple T) x :
   count (xpred1 x) t <= m.
