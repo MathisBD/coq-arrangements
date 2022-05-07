@@ -60,13 +60,8 @@ Proof.
     suff: \sum_(i | P i) E i > 0 by move /lt0r_neq0 /eqP ; intuition.
     have Ei0_gt0 : E i0 > 0 by rewrite Order.POrderTheory.lt_def Ei0_neq0 Hle0. clear Ei0_neq0.
     rewrite (bigID (xpred1 i0)) /= ; apply ltr_paddr.
-      by apply big_ind => // [x y | i /andP[Pi _]] ; [apply addr_ge0 | auto].
-      have cond i : P i && (i == i0) = (i == i0).
-        apply /eqP ; rewrite eq_sym -eqbE /eqb /addb. 
-        case: ifP => /= [/negbTE ->|/negbT].
-        + by rewrite andbF. 
-        + by rewrite negbK => /eqP -> ; apply /andP ; intuition.
-      by under eq_big do [rewrite cond|] ; rewrite big_pred1_eq.
+    + by apply big_ind => // [x y | i /andP[Pi _]] ; [apply addr_ge0 | auto].
+    + by under eq_bigl do rewrite andb_idl => [|/eqP-> //] ; rewrite big_pred1_eq.
 Qed.
 
 Lemma norm_ge0if x : (0 <= norm x ?= iff (x == 0))%R.

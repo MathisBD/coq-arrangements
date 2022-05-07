@@ -229,16 +229,28 @@ Section SimpleArrangement.
 Hypothesis eq_nd : n = d.
 Hypothesis sH : simple.
 
-Lemma bigcap1U m a i0 (P : set 'I_m) (F : 'I_m -> 'M[R]_a) :
-  (\bigcap_(i in (i0 |` P)) F i = F i0 :&: \bigcap_(i in P) F i)%MS.
-Proof. Admitted.
+Lemma bigcap1U m a i0 (P : set 'I_m) (F : 'I_m -> 'M[R]_a) : i0 \notin P ->
+  (\bigcap_(i in (i0 |` P)) F i == F i0 :&: \bigcap_(i in P) F i)%MS.
+Proof. 
+  rewrite (bigID [pred i | i == i0]) /= => N_Pi0.
+  apply /eqmxP ; apply cap_eqmx.
+  - under eq_bigl do (rewrite andb_idl => [|/eqP->] ; [|by rewrite in_setE ; left]).
+    rewrite big_pred1_eq ; apply eqmx_refl.
+  - have cond i : ((i \in i0 |` P) && (i != i0)) = (i \in P).
+      apply /eqP ; rewrite -eqbE /eqb /addb ; case: ifP => [|/negbT].
+      + rewrite negb_and negbK => /orP[|/eqP-> //].
+        move /negP ; rewrite in_setE /= -[P i]in_setE.
+        by case E: (i \in P) ; intuition.
+      + by rewrite negbK => /andP[+ /eqP] ; rewrite !in_setE /= ; intuition.
+    under eq_bigl do rewrite cond ; apply eqmx_refl.
+Qed.
 
 Lemma hplane_cap_eq (P : set 'I_n) : 
   \rank (\bigcap_(i in P) tnth H i) = d - #|P|.
 Proof. 
   elim /finset_ind_rev : P => /= [|i0 P N_Px].
     by under eq_big do [rewrite in_setT|] ; rewrite sH card_setT /= card_ord ; lia.
-  rewrite set1U_disj_card // bigcap1U.
+  rewrite set1U_disj_card // (eqmx_rank (bigcap1U _ _)) //.
   remember (\bigcap_(i in P) tnth H i)%MS as M ; rewrite -HeqM => IH.
   suff: \rank M <= d - #|P|.
     move: (hplane_cap_lb P) ; rewrite -HeqM => LB UB. 
