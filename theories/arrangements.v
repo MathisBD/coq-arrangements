@@ -10,16 +10,17 @@ Open Scope classical_set_scope.
 Open Scope real_scope.
 
 Section Arrangement.
-
 Variables R : realType.
 (* d : dimension of the space.
  * n : number of hyperplanes in the arrangement. *)
 Variables (d n : nat).
 Hypothesis gt_d1 : d > 1.
+
 Notation point := 'M[R]_(1, d).
 (* We create the hyperplane subtype of square matrices *)
 Record hplane := Hplane { M :> 'M[R]_(d, d) ; _ : \rank M == d.-1 }.
 Canonical hplane_subType := [subType for M].
+
 Lemma hplane_rank (h: hplane) : \rank h = d.-1.
 Proof. by apply /eqP ; case: h. Qed.
 
@@ -105,8 +106,8 @@ Lemma clfpointsE g : nempty g -> closure (fpoints g) `<=>` clfpoints g.
  * which is defined with filters. *)
 
 (* This is a more convenient definition of subface : we will only work with this one. *)
-Definition subface f g : Prop := 
-  (dim g = (dim f).+1) /\ (fpoints f `<=` clfpoints g).
+Inductive subface f g : Prop := 
+  Subface of nempty f & nempty g & fpoints f `<=` clfpoints g & dim g = (dim f).+1.
 
 Lemma face_inclP f g : nempty f -> 
   reflect (fpoints f `<=` clfpoints g) [forall i, (tnth f i == On) || (tnth f i == tnth g i)].
@@ -178,10 +179,18 @@ Lemma openS_Non (f : face) :
   openS (\bigcap_(i in ~`P) hpoints (tnth f i) (tnth H i)).
 Proof. by apply openS_cap => i /= /negP ; apply openS_Non_hplane. Qed.
 
-
 Lemma submx_lin (x y : point) (l : R) (M : 'M[R]_d) : 
   ((x + l%:M *m y)%R <= M)%MS -> (l > 0)%R -> (x <= M)%MS -> (y <= M)%MS.
-Proof. Admitted.
+Proof. 
+  move=> xlyM lt_0l xM.
+  have lyM : ((l%:M *m y)%R <= M)%MS.
+    rewrite -[(l%:M *m y)%R]GRing.add0r -(GRing.subrr x).
+    rewrite -GRing.addrAC. Search submx GRing.add.
+    by apply addmx_sub ; rewrite // -GRing.scaleN1r ; apply scalemx_sub.
+  rewrite -[y](@GRing.scalerK _ _ l). 
+  - by rewrite -!mul_scalar_mx ; apply mulmx_sub.
+  - by apply Num.Theory.lt0r_neq0.
+Qed. 
 
 Theorem fdim_lb (f : face) : nempty f -> dim f >= d - count (xpred1 On) f.
 Proof.
@@ -477,8 +486,8 @@ Qed.
 
 Theorem subfaceE f g : subface f g <-> exists i, [/\ tnth f i == On, tnth g i != On & forall j, j != i -> tnth f j = tnth g j].
 Proof. 
-  split ; last first => [Hfg | []].
-  - rewrite /subface ; split ; last first => [x|]. 
+  split ; last first => [Hfg | [_ _]].
+  - constructor ; [by apply all_nempty .. |move=> x|]. 
     + case: Hfg => [i [fi gi fgj]]. 
       rewrite -in_setE => /fpointsP Hf.
       rewrite -in_setE ; apply /clfpointsP => j.
@@ -486,7 +495,7 @@ Proof.
       by rewrite Hf -fgj ; [|rewrite eq_sym //] ; left.
     + rewrite -addn1 ; apply dim_eqk.
       by move: Hfg ; rewrite tuple_count_eq1 addn1 => [[-> _]].
-  - rewrite -addn1 dim_eqk => Hcount /face_inclP Hincl.
+  - rewrite -[(dim f).+1]addn1 dim_eqk => /face_inclP Hincl Hcount .
     feed Hincl ; [by apply all_nempty | do [move=> /forallP /=] in Hincl].
     apply tuple_count_eq1 ; split => [|i] ; first by rewrite -addn1.
     by rewrite implyNb orbC Hincl.
