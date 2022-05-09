@@ -129,18 +129,6 @@ Lemma fpoints_onNon f :
     \bigcap_(i in ~`P) hpoints (tnth f i) (tnth H i).
 Proof. Admitted.
 
-Lemma is_true_inj : injective is_true.
-Proof. 
-  move=> a b ; case: a ; case: b => //= ;  
-  move: (@iffP (is_true true) (is_true false) true (@idP true)) => H0 H1.
-  - by feed_n 2 H0 ; [by rewrite H1 .. |] ; case: H0.
-  - by feed_n 2 H0 ; [by rewrite H1 .. |] ; case: H0.
-Qed.
-
-Lemma nat_of_bool_inj : injective nat_of_bool.
-Proof. by move=> a b ; case: a ; case: b. Qed. 
-
-
 Lemma Mhcap_rank_lb (M : 'M[R]_d) (h : hplane) : 
   \rank (M :&: h) >= \rank M - 1.
 Proof. by move: (mxrank_sum_cap M h) (rank_leq_col (M + h)%MS) ; rewrite hplane_rank ; lia. Qed.
@@ -238,21 +226,6 @@ Section SimpleArrangement.
 Hypothesis eq_nd : n = d.
 Hypothesis sH : simple.
 
-Lemma bigcap1U m a i0 (P : set 'I_m) (F : 'I_m -> 'M[R]_a) : i0 \notin P ->
-  (\bigcap_(i in (i0 |` P)) F i == F i0 :&: \bigcap_(i in P) F i)%MS.
-Proof. 
-  rewrite (bigID [pred i | i == i0]) /= => N_Pi0.
-  apply /eqmxP ; apply cap_eqmx.
-  - under eq_bigl do (rewrite andb_idl => [|/eqP->] ; [|by rewrite in_setE ; left]).
-    rewrite big_pred1_eq ; apply eqmx_refl.
-  - have cond i : ((i \in i0 |` P) && (i != i0)) = (i \in P).
-      apply /eqP ; rewrite -eqbE /eqb /addb ; case: ifP => [|/negbT].
-      + rewrite negb_and negbK => /orP[|/eqP-> //].
-        move /negP ; rewrite in_setE /= -[P i]in_setE.
-        by case E: (i \in P) ; intuition.
-      + by rewrite negbK => /andP[+ /eqP] ; rewrite !in_setE /= ; intuition.
-    under eq_bigl do rewrite cond ; apply eqmx_refl.
-Qed.
 
 Lemma hplane_cap_eq (P : set 'I_n) : 
   \rank (\bigcap_(i in P) tnth H i) = d - #|P|.

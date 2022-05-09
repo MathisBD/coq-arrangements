@@ -44,7 +44,7 @@ Fixpoint all_faces k : seq (k.-tuple sign) :=
         (map (cons_tuple Left ) fs) ++
         (map (cons_tuple On   ) fs) ++
         (map (cons_tuple Right) fs)
-  | 0 => [::]
+  | 0 => [tuple] :: [::]
   end.
 
 Fixpoint build_subs_rec k (g : k.-tuple sign) : list (k.-tuple sign) :=
@@ -71,16 +71,39 @@ End Algorithm.
 Section Correctness.
 
 Lemma all_faces_correct k f : f \in all_faces k.
-Proof. Admitted.
+Proof. 
+  elim: k f => [|k IH] f ; rewrite /all_faces.
+    by rewrite tuple0 inE.
+  case: (tupleP f) => s f' ; rewrite !mem_cat ; apply /or3P.
+  by case: s ; [apply Or31 | apply Or32 | apply Or33] ; 
+    rewrite tuple_cons_in ; intuition.
+Qed.
 
 Lemma build_subs_rec_inv k (g : k.-tuple sign) : 
   forall f, f \in build_subs_rec g -> 
     exists i, [/\ tnth f i == On, tnth g i != On & forall j, j != i -> tnth f j = tnth g j].
-Proof. Admitted.
-
+Proof. 
+  elim: k g => [|k IH] g f ; first by rewrite /build_subs_rec inE.
+  case: (tupleP f) => /= sf f'. 
+  case: (tupleP g) => /= sg g' ; rewrite /thead tnth0 tuple_behead_cons.
+  case: ifP => [/eqP->|/negbT neq_sgOn].
+  - rewrite tuple_cons_in tupleE => [[-> /IH[i [/= fi gi fgj]]]].
+    exists (lift ord0 i) ; split => [| |j] ; rewrite ?tnthS //.
+    by case: (ord_0liftP j) => // j' ; rewrite (inj_eq lift_inj) !tnthS ; apply fgj.
+  - rewrite in_cons => /orP[] ; [|rewrite tuple_cons_in].
+    + rewrite {1}tupleE => /eqP P ; apply cons_tuple_inj in P ; move: P => [-> ->].
+      exists ord0 ; split => [| |j] ; [rewrite tnth0 // .. |].
+      by case: (ord_0liftP j) => // j' _ ; rewrite !tnthS.
+    + move=> [-> /IH[i [fi gi fgj]]].
+      exists (lift ord0 i) ; split => [| |j] ; rewrite ?tnthS //.
+      by case: (ord_0liftP j) => // j' ; rewrite (inj_eq lift_inj) !tnthS ; apply fgj.
+Qed.
+  
 Corollary build_subs_subface g : 
   forall f, f \in build_subs g -> subface H f g.
 Proof. by move=> f Hfg ; apply subfaceE ; last apply build_subs_rec_inv. Qed.
+
+
 
 Lemma all_reachable f : reachable build f.
 Proof. Admitted.
