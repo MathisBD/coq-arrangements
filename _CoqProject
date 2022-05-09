@@ -1,6 +1,6 @@
 -R . MyProofs
 theories/tactics.v
-theories/csets_extras.v
+theories/mathcomp_extras.v
 theories/point_topo.v
 theories/arrangements.v
 theories/igraph.v

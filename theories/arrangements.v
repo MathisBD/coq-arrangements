@@ -1,7 +1,7 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 From mathcomp.analysis Require Import reals classical_sets boolp.
 From mathcomp Require Import zify algebra_tactics.ring.
-Require Import tactics csets_extras point_topo.
+Require Import tactics mathcomp_extras point_topo.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -436,13 +436,6 @@ Proof.
         have: Ordinal Hj = lift ord0 (Ordinal Hj') => [|-> neq_ji].
           by apply /eqP ; rewrite -val_eqE /= /bump /= add1n.
         rewrite !tnthS ; apply bfgj ; rewrite -val_eqE /= ; lia.
-Qed.
-
-Lemma tuple_count_size m (T : eqType) (t : m.-tuple T) x :
-  count (xpred1 x) t <= m.
-Proof.
-  rewrite (leqRW (@count_size _ _ t)).
-  by case: t => t /eqP st /= ; rewrite st leqnn.
 Qed.
      
 Lemma dim_eqk f g k : dim g = dim f + k <-> 

@@ -1,7 +1,7 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 From mathcomp.analysis Require Import reals classical_sets boolp.
 From mathcomp Require Import zify algebra_tactics.ring.
-Require Import tactics csets_extras.
+Require Import tactics mathcomp_extras.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -23,17 +23,6 @@ Section EuclidNorm.
 Implicit Types (x y : point) (s t : R).
 Open Scope ring_scope.
 
-Lemma trmx_scale x s : (s *: x)^T = s *: x^T.
-Proof. by rewrite -mul_mx_scalar trmx_mul tr_scalar_mx mul_scalar_mx. Qed.
-
-Lemma scale_mulmx m1 m2 m3 (A : 'M_(m1, m2)) (B : 'M_(m2, m3)) s t : 
-  s *: A *m (t *: B) = (s * t) *: (A *m B).
-Proof. 
-  rewrite -!mul_scalar_mx scalar_mxM.
-  rewrite mulmxA [in RHS]mulmxA ; congr (_ *m _).
-  by rewrite -mulmxA scalar_mxC mulmxA.
-Qed.
-
 Definition norm (x : point) : R := Num.sqrt ((x *m x^T) ord0 ord0). 
 
 Lemma norm_scalel x (s : R) : norm (s *: x) = `|s| * norm x.
@@ -45,24 +34,6 @@ Qed.
 
 Lemma norm_scaler x (s : R) : norm (s *: x) = norm x * `|s|.
 Proof. by rewrite norm_scalel mulrC. Qed.
-
-Lemma sumr_ge0if (I : finType) (P : pred I) (E : I -> R) :
-  (forall i, P i -> 0 <= E i)%R -> 
-  (0 <= \sum_(i | P i) E i ?= iff [forall i, P i ==> (E i == 0)])%R.
-Proof. 
-  move=> Hle0 ; split ; first by apply big_ind => // x y ; apply addr_ge0.
-  apply /eqP ; case: ifP => [/forallP Heq0|]. 
-  - apply big_ind => //.
-    by move=> x y <- <- ; rewrite addr0.
-    by move=> i Pi ; symmetry ; apply /eqP ; apply (implyP (Heq0 i)).
-  - move /negbT ; rewrite negb_forall => /existsP[i0].
-    rewrite negb_imply => /andP[Pi0 Ei0_neq0].
-    suff: \sum_(i | P i) E i > 0 by move /lt0r_neq0 /eqP ; intuition.
-    have Ei0_gt0 : E i0 > 0 by rewrite Order.POrderTheory.lt_def Ei0_neq0 Hle0. clear Ei0_neq0.
-    rewrite (bigID (xpred1 i0)) /= ; apply ltr_paddr.
-    + by apply big_ind => // [x y | i /andP[Pi _]] ; [apply addr_ge0 | auto].
-    + by under eq_bigl do rewrite andb_idl => [|/eqP-> //] ; rewrite big_pred1_eq.
-Qed.
 
 Lemma norm_ge0if x : (0 <= norm x ?= iff (x == 0))%R.
 Proof. 
@@ -92,7 +63,6 @@ Qed.
 Lemma normN x : norm (-x) = norm x.
 Proof. by rewrite -scaleN1r norm_scalel normrN1 mul1r. Qed.
 
-Close Scope ring_scope.
 End EuclidNorm.
 
 Section OpenSets.
@@ -133,18 +103,6 @@ Proof. Admitted.
   apply is_true_inj ; apply propext ; split.
   - move=> le_xy. apply /andP ; split => //. Search transitive. apply Order.MeetJoinMixin.le_trans.*)
 
-Lemma widen_ord_ante m (i : 'I_m.+1) :
-i != ord_max -> exists j : 'I_m, i = widen_ord (leqnSn m) j.
-Proof. 
-case: i => [i lt_im1] => ne_oiom.
-case: (i =P m) => C_im.
-- have: Ordinal lt_im1 = ord_max by apply val_inj.
-  by move: ne_oiom => /[swap] -> ; rewrite eqxx.
-- have lt_im : i < m by lia. exists (Ordinal lt_im).
-  by apply val_inj.
-Qed.
-
-
 Lemma openS_near_cap m (P : set 'I_m) F x :
   (forall i, P i -> openS_near (F i) x) -> 
   openS_near (\bigcap_(i in P) F i) x.
@@ -162,9 +120,11 @@ Proof.
   exists (Num.min e1 e2) ; (try by case: (Num.Theory.ltrP e1 e2)) ;
   rewrite /bigcap /= => y /le_min/andP[le_De1 le_De2] i P1i ;
   move: (IH y le_De1) ; rewrite /bigcap /= => {}IH ;
-  case: (i =P ord_max) ; [by move-> ; apply Om| |by move: P1i=> /[swap] -> /P1om|] 
-    => /eqP /widen_ord_ante[j Hij] ;
-  by rewrite Hij ; apply IH ; rewrite /P0 /= -Hij.
+  case: (widen_ordP i) P1i => [ |j] P1i.
+  - by apply Om.
+  - by apply IH ; rewrite /P0 //=.
+  - by intuition.
+  - by apply IH ; rewrite /P0 //=. 
 Qed.
 
 Lemma openS_cap m (P : set 'I_m) F :

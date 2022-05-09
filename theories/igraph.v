@@ -1,7 +1,7 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 From mathcomp.analysis Require Import reals classical_sets boolp.
 From mathcomp Require Import zify algebra_tactics.ring.
-Require Import tactics csets_extras point_topo arrangements.
+Require Import tactics mathcomp_extras point_topo arrangements.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

@@ -1,7 +1,7 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 From mathcomp.analysis Require Import reals classical_sets boolp.
 From mathcomp Require Import zify algebra_tactics.ring.
-Require Import tactics csets_extras point_topo arrangements igraph.
+Require Import tactics mathcomp_extras point_topo arrangements igraph.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -28,8 +28,6 @@ Notation igempty := (igraph.igempty R d n).
 Notation igext_incidence := (@igraph.igext_incidence R d n).
 Notation igext_ipoint := (@igraph.igext_ipoint R d n).
 
-
-Section SimpleIGBuilding.
 Variables (H : n.-tuple hplane).
 Hypothesis eq_nd : n = d.
 Hypothesis sH : simple H.
@@ -79,31 +77,47 @@ Proof.
     rewrite tuple_cons_in ; intuition.
 Qed.
 
-Lemma build_subs_rec_inv k (g : k.-tuple sign) : 
-  forall f, f \in build_subs_rec g -> 
-    exists i, [/\ tnth f i == On, tnth g i != On & forall j, j != i -> tnth f j = tnth g j].
+Lemma build_subs_rec_inv k (f g : k.-tuple sign) : 
+  f \in build_subs_rec g <-> 
+  exists i, [/\ tnth f i == On, tnth g i != On & forall j, j != i -> tnth f j = tnth g j].
 Proof. 
-  elim: k g => [|k IH] g f ; first by rewrite /build_subs_rec inE.
-  case: (tupleP f) => /= sf f'. 
-  case: (tupleP g) => /= sg g' ; rewrite /thead tnth0 tuple_behead_cons.
-  case: ifP => [/eqP->|/negbT neq_sgOn].
-  - rewrite tuple_cons_in tupleE => [[-> /IH[i [/= fi gi fgj]]]].
-    exists (lift ord0 i) ; split => [| |j] ; rewrite ?tnthS //.
-    by case: (ord_0liftP j) => // j' ; rewrite (inj_eq lift_inj) !tnthS ; apply fgj.
-  - rewrite in_cons => /orP[] ; [|rewrite tuple_cons_in].
-    + rewrite {1}tupleE => /eqP P ; apply cons_tuple_inj in P ; move: P => [-> ->].
-      exists ord0 ; split => [| |j] ; [rewrite tnth0 // .. |].
-      by case: (ord_0liftP j) => // j' _ ; rewrite !tnthS.
-    + move=> [-> /IH[i [fi gi fgj]]].
+  split.
+  - elim: k g f => [|k IH] g f ; first by rewrite /build_subs_rec inE.
+    case: (tupleP f) => /= sf f'. 
+    case: (tupleP g) => /= sg g' ; rewrite /thead tnth0 tuple_behead_cons.
+    case: ifP => [/eqP->|/negbT neq_sgOn].
+    + rewrite tuple_cons_in tupleE => [[-> /IH[i [/= fi gi fgj]]]].
       exists (lift ord0 i) ; split => [| |j] ; rewrite ?tnthS //.
-      by case: (ord_0liftP j) => // j' ; rewrite (inj_eq lift_inj) !tnthS ; apply fgj.
+      case: (lift_ordP j) => // j' ; rewrite (inj_eq lift_inj) !tnthS ; apply fgj.
+    + rewrite in_cons => /orP[] ; [|rewrite tuple_cons_in].
+      * rewrite {1}tupleE => /eqP P ; apply cons_tuple_inj in P ; move: P => [-> ->].
+        exists ord0 ; split => [| |j] ; [rewrite tnth0 // .. |].
+        by case: (lift_ordP j) => // j' _ ; rewrite !tnthS.
+      * move=> [-> /IH[i [fi gi fgj]]].
+        exists (lift ord0 i) ; split => [| |j] ; rewrite ?tnthS //.
+        by case: (lift_ordP j) => // j' ; rewrite (inj_eq lift_inj) !tnthS ; apply fgj.
+  - elim: k g f => [|k IH] g f [i ] ; first by case: i => [i Hi] ; lia.
+    case: (tupleP f) => /= sf f' ; case: (tupleP g) => /= [sg g'] ; rewrite /thead tnth0 /=.
+    case: (lift_ordP i) => [|i'].
+    + rewrite !tnth0 => [[/eqP->] ne_sgOn Hj].
+      case: ifP => [|_] ; first by rewrite -[sg == On]negbK ne_sgOn.
+      rewrite in_cons ; apply /orP ; left ; rewrite eqEtuple ; apply /forallP => j.
+      case: (lift_ordP j) => [|j'] ; first by rewrite !tnth0.
+      by rewrite Hj -?val_eqE //= !tnthS tuple_behead_cons.
+    + rewrite !tnthS => [[fi gi fgj]]. 
+      have : sf = sg => [|->].
+        feed (fgj ord0). by rewrite -val_eqE /=. by rewrite !tnth0 in fgj.
+      have Hf'g' : f' \in build_subs_rec g'.
+        apply IH ; exists i' ; split => // j neq_ji'.
+        feed (fgj (lift ord0 j)). by rewrite (inj_eq lift_inj).
+        by move: fgj ; rewrite !tnthS.
+      case: ifP => [|/negbT] C_sgOn ; [|rewrite in_cons ; apply /orP ; right] ;
+      by rewrite tuple_cons_in tuple_behead_cons ; split. 
 Qed.
   
 Corollary build_subs_subface g : 
-  forall f, f \in build_subs g -> subface H f g.
-Proof. by move=> f Hfg ; apply subfaceE ; last apply build_subs_rec_inv. Qed.
-
-
+  forall f, f \in build_subs g <-> subface H f g.
+Proof. by move=> f ; rewrite subfaceE // build_subs_rec_inv. Qed.
 
 Lemma all_reachable f : reachable build f.
 Proof. Admitted.
@@ -115,3 +129,4 @@ Proof. Admitted.
 End Correctness.
 
 End SimpleIGBuilding.
+
