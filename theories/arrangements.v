@@ -484,7 +484,8 @@ Proof.
     by lia.
 Qed.
 
-Theorem subfaceE f g : subface f g <-> exists i, [/\ tnth f i == On, tnth g i != On & forall j, j != i -> tnth f j = tnth g j].
+Theorem subfaceE f g : subface f g <-> 
+  exists i, [/\ tnth f i == On, tnth g i != On & forall j, j != i -> tnth f j = tnth g j].
 Proof. 
   split ; last first => [Hfg | [_ _]].
   - constructor ; [by apply all_nempty .. |move=> x|]. 

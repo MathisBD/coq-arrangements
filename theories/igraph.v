@@ -44,27 +44,24 @@ Inductive ig_ipoint (ig : igraph) (H : n.-tuple hplane) : Prop :=
 
 
 Section IGManipulation.
+
 (* The empty incidence graph. *)
 Definition igempty := Igraph [rel f g | false] (fun f => 0%R).
 
 (* extend an igraph by setting ipoint f = x *)
 Definition igext_ipoint ig (f : face) (x : point) :=
   Igraph (incident ig) (fun g => if g == f then x else ipoint ig g).
-Notation "f '-ipoint->' x ; ig" := (igext_ipoint ig f x)
-  (at level 0, right associativity) : form_scope.
 
-Definition igext_incident ig (f g : face) :=
+Definition igext_incidence ig (f g : face) :=
   Igraph [rel f' g' | ((f' == f) && (g' == g)) || (incident ig f' g')] (ipoint ig).
-Check igext_incident.
-Notation "f '-incidence->' g ';' ig" := (igext_incident ig f g)
-  (at level 0, right associativity) : form_scope.
 
-
-(* An example using the notations to extend igraphs :
-Variables (f g : face) (x y : point).
-Check (f -ipoint-> x ; f -incidence-> g ; f -ipoint-> y ; igempty).*)
-
+(* An example using the notations to extend igraphs : *)
 
 End IGManipulation.
 
 End IncidenceGraph.
+
+Notation "f '-incidence->' g ';' ig" := (igext_incidence ig f g)
+  (at level 0, right associativity) : form_scope.
+Notation "f '-ipoint->' x ; ig" := (igext_ipoint ig f x)
+  (at level 0, right associativity) : form_scope.
