@@ -61,8 +61,44 @@ Definition Mpoints k (M : 'M[R]_(k, d)) : set point := [set x | (x <= M)%MS ].
 (* The set of points Left/On/Right of a hyperplane *) 
 Definition hpoints s h : set point := [set x | hside x h == s ].
 
+Lemma hsideE x h : hside x h == On <-> (x <= h)%MS.
+Proof. 
+  split => sub_xh ; last first.
+  - remember (row_base h^C%MS) as V.
+    remember ((x *m V^T) ord0 (eq_rect_r [eta ordinal] ord0 (rank_hplaneC h)))%R as t.
+    suff: t = 0%R => [eq_t0|].
+      by rewrite /hside ; case: ifP => // /negbT ; case: ifP => [|/negbT] ; rewrite -HeqV -Heqt eq_t0 eqxx.
+Admitted.  
+  
+Lemma hpoints_On h : hpoints On h = Mpoints h.
+Proof. by rewrite /hpoints /Mpoints eqEsubset ; split => x /= ; rewrite hsideE. Qed.
+
+
 Lemma Mpoints_id : Mpoints 1%:M = setT.
 Proof. by rewrite -subTset /subset /Mpoints => x _ /= ; apply submx1. Qed.
+
+Lemma Mpoints_cap2 (A B : 'M[R]_d) : Mpoints (A :&: B)%MS = Mpoints A `&` Mpoints B.
+Proof. by rewrite /Mpoints eqEsubset ; split => x /= ; rewrite sub_capmx ; move=> /andP. Qed.
+
+Lemma Mpoints_cap m (P : set 'I_m) (F : 'I_m -> 'M[R]_d) :
+  Mpoints (\bigcap_(i in P) F i)%MS = \bigcap_(i in P) Mpoints (F i).
+Proof.
+  elim /finset_ind : P => [|i0 P NPi0 IH].
+    under eq_bigl => i do rewrite in_set0. 
+    by rewrite big_pred0 // Mpoints_id ; symmetry ; rewrite -subTset /bigcap => x /=.
+  rewrite bigcap_setU1 -IH -Mpoints_cap2 ; f_equal.
+  rewrite (bigID (xpred1 i0)) /= ; congr (_ :&: _)%MS. 
+  - under eq_bigl => i. rewrite andb_idl => [|/eqP->]. over. 
+      by rewrite in_setE /= ; intuition.
+    by rewrite big_pred1_eq.
+  - have cond i : (i \in i0 |` P) && (i != i0) = (i \in P). 
+      apply /eqP ; rewrite eqE /= /eqb /addb ; case: ifP => [|/negbT].
+      + rewrite negb_and => /orP[] ; last by rewrite negbK => /eqP->.
+        by apply contra ; rewrite !in_setE /= ; intuition.
+      + rewrite negbK => /andP[] ; rewrite !in_setE /= => [[->|//]].
+        by rewrite eqxx.
+    by under eq_bigl do rewrite cond.
+Qed.
 
 Definition face := n.-tuple sign.
 Definition fpoints (f : face) : set point := 
@@ -87,6 +123,17 @@ Proof.
   - by move: (P i I) ; rewrite /hpoints /= ; move=> [/eqP->|/eqP->] ; auto.
   - by rewrite /hpoints /= ; case: (P i) => -> ; auto.
 Qed.
+
+Lemma eqEfpoints f f' : nempty f -> (f == f') = (fpoints f == fpoints f'). 
+Proof.
+  move=> [x fx]. 
+  apply is_true_inj, propext ; split => [/eqP-> //|/eqP points_ff'].
+  Search eq tnth in tuple. 
+  apply /eqP ; apply eq_from_tnth => i.
+  move: (fx) ; rewrite -in_setE => /fpointsP /(_ i) <-.
+  by apply /fpointsP ; rewrite in_setE -points_ff'.
+Qed. 
+
 
 Definition dim f : nat := infimum 0 (mxrank @` [set M : 'M[R]_d | fpoints f `<=` Mpoints M]).
 
@@ -125,13 +172,51 @@ Qed.
 Lemma fpoints_onNon f :
   let P := [set i | tnth f i == On] in
   fpoints f =
-    Mpoints (\bigcap_(i | i \in P) tnth H i)%MS `&`  
+    Mpoints (\bigcap_(i in P) tnth H i)%MS `&`  
     \bigcap_(i in ~`P) hpoints (tnth f i) (tnth H i).
-Proof. Admitted.
+Proof. 
+  remember [set i | tnth f i == On] as P => /=.
+  rewrite /fpoints [in LHS](bigcapID P) !setTI ; congr (_ `&` _).
+  under eq_bigcapr => i do [rewrite [in P i]HeqP /= => /eqP-> ; rewrite hpoints_On].
+  by rewrite Mpoints_cap.
+Qed.
 
-Lemma Mhcap_rank_lb (M : 'M[R]_d) (h : hplane) : 
+(* calculates the orthogonal space of M *)
+(*Definition orthoM (M : 'M[R]_d) : 'M[R]_d := *)
+
+
+Lemma openS_Non_hplane (h : hplane) s : s != On -> openS (hpoints s h).
+Proof. 
+  rewrite /openS /openS_near => Non x shx.
+  pose V := h^C%MS.
+  move: (@add_proj_mx _ _ _ h V x) => decomp ; feed_n 2 decomp.
+    by rewrite /V capmx_compl.
+    by apply submx_full, addsmx_compl_full.
+  
+Admitted.
+  
+Lemma openS_Non (f : face) : 
+  let P := [set i | tnth f i == On] in
+  openS (\bigcap_(i in ~`P) hpoints (tnth f i) (tnth H i)).
+Proof. by apply openS_cap => i /= /negP ; apply openS_Non_hplane. Qed.
+
+
+Lemma Mhcap_rank_lb (h : hplane) (M : 'M[R]_d) : 
   \rank (M :&: h) >= \rank M - 1.
 Proof. by move: (mxrank_sum_cap M h) (rank_leq_col (M + h)%MS) ; rewrite hplane_rank ; lia. Qed.
+
+Lemma Mhcap_rank_eq (h : hplane) (M : 'M[R]_d) : 
+  \rank M = \rank (M :&: h) + ~~(M <= h)%MS.
+Proof. 
+  (case E: (M <= h)%MS ; move: E) => [/idP /capmx_idPl /eqmxP /eqmx_rank->|/negbT NS_Mh] /= ; try lia.
+  apply /eqP ; move: NS_Mh ; apply contraR.
+  have /orP : (\rank (M :&: h) == \rank M) || (\rank (M :&: h) + 1 == \rank M).
+    suff: \rank M - 1 <= \rank (M :&: h) <= \rank M ; [lia|].
+    by rewrite Mhcap_rank_lb /= ; apply mxrankS, capmxSl.
+  case => [rMhM _ | /eqP] ; last by lia.
+  apply /capmx_idPl /eqmxP /andP ; split ; first by apply capmxSl.
+  by rewrite -mxrank_leqif_sup // capmxSl.
+Qed.
 
 Lemma hplane_cap_lb (P : set 'I_n) : \rank (\bigcap_(i in P) tnth H i) >= d - #|P|.
 Proof. 
@@ -153,60 +238,170 @@ Proof.
   by apply eq_big => [//|i _] ; f_equal ; apply is_true_inj ; rewrite !in_setE /= in_setE.
 Qed.
 
-Lemma openS_Non_hplane (h : hplane) s : s != On -> openS (hpoints s h).
-Proof. 
-  rewrite /openS /openS_near => Non x shx.
-  pose V := h^C%MS. Search proj_mx.
-  move: (@add_proj_mx _ _ _ h V x) => decomp ; feed_n 2 decomp.
-    by rewrite /V capmx_compl.
-    by apply submx_full, addsmx_compl_full.
-Admitted.
-  
-Lemma openS_Non (f : face) : 
-  let P := [set i | tnth f i == On] in
-  openS (\bigcap_(i in ~`P) hpoints (tnth f i) (tnth H i)).
-Proof. by apply openS_cap => i /= /negP ; apply openS_Non_hplane. Qed.
-
 Lemma submx_lin (x y : point) (l : R) (M : 'M[R]_d) : 
   ((x + l%:M *m y)%R <= M)%MS -> (l > 0)%R -> (x <= M)%MS -> (y <= M)%MS.
 Proof. 
   move=> xlyM lt_0l xM.
   have lyM : ((l%:M *m y)%R <= M)%MS.
     rewrite -[(l%:M *m y)%R]GRing.add0r -(GRing.subrr x).
-    rewrite -GRing.addrAC. Search submx GRing.add.
+    rewrite -GRing.addrAC. 
     by apply addmx_sub ; rewrite // -GRing.scaleN1r ; apply scalemx_sub.
   rewrite -[y](@GRing.scalerK _ _ l). 
   - by rewrite -!mul_scalar_mx ; apply mulmx_sub.
   - by apply Num.Theory.lt0r_neq0.
 Qed. 
 
-Theorem fdim_lb (f : face) : nempty f -> dim f >= d - count (xpred1 On) f.
+
+Lemma dimE f : 
+  nempty f -> dim f = \rank \bigcap_(i | tnth f i == On) tnth H i.
 Proof.
-  move=> NEf. apply inf_ge ; last first.
-    by apply image_nonempty ; exists 1%:M%R => /= ; rewrite Mpoints_id ; apply subsetT.
-  move=> r /= [M points_fM <-] ; move: NEf (@openS_Non f) points_fM. 
-  rewrite /nempty /openS -card_set_count fpoints_onNon ; 
-  remember ([set i | tnth f i == On]) as P ; rewrite -HeqP ;
-  remember (\bigcap_(i in P) tnth H i)%MS as K ;
-  remember (\bigcap_(i in ~`P) hpoints (tnth f i) (tnth H i)) as S ; rewrite -HeqS.
-  move=> [x /= [Kx Sx]] /in_setP/(_ x Sx) O_Sx KSM ; rewrite /Mpoints /= in Kx.
-  have KiM : forall i, row i K \in Mpoints M => [i|].
-    move: (openS_near_scale (row i K) O_Sx) => [l lt_0l S_x_lKi].
-    have K_x_lKi : (x + l%:M *m row i K)%R \in Mpoints K.
-      by rewrite inE /Mpoints /= ; apply addmx_sub => // ;
-      apply mulmx_sub ; apply row_sub.
-    have M_x_lKi : (x + l%:M *m row i K)%R \in Mpoints M ; [|clear K_x_lKi S_x_lKi].
-      rewrite -Csubset1 ; apply (@subset_trans _ (Mpoints K `&` S)) => // ; rewrite Csubset1.
-      rewrite in_setI ; apply /andP ; split ; [apply K_x_lKi|rewrite inE ; apply S_x_lKi].
-    have Mx : x \in Mpoints M.
-      rewrite -Csubset1 ; apply (@subset_trans _ (Mpoints K `&` S)) => // ; rewrite Csubset1.
-      rewrite in_setI ; apply /andP ; split ; rewrite inE ?/Mpoints //=.
-    rewrite !inE /Mpoints /= in M_x_lKi Mx * ; apply (@submx_lin x _ l) => //.
-  have KM : (K <= M)%MS.
-    by apply /row_subP => i ; move: (KiM i) ; rewrite inE /Mpoints /=.
-  apply (@leq_trans (\rank K)) ; last by apply mxrankS.
-  by rewrite HeqK hplane_cap_lb.
+  have cond i : (tnth f i == On) = (i \in [set i | tnth f i == On]).
+    by apply is_true_inj ; rewrite in_setE /=.
+  under eq_bigl do rewrite cond.
+  move=> NEf. 
+  apply /eqP ; rewrite eqn_leq ; apply /andP ; split ; last first.
+  - apply inf_ge ; last first.
+      by apply image_nonempty ; exists 1%:M%R => /= ; rewrite Mpoints_id ; apply subsetT.
+    move=> r /= [M points_fM <-] ; move: NEf (@openS_Non f) points_fM. 
+    rewrite /nempty /openS fpoints_onNon.
+    remember ([set i | tnth f i == On]) as P ; rewrite -?HeqP.
+    remember (\bigcap_(i in P) tnth H i)%MS as K ; rewrite -?HeqK.
+    remember (\bigcap_(i in ~`P) hpoints (tnth f i) (tnth H i)) as S ; rewrite -?HeqS.
+    move=> [x /= [Kx Sx]] /in_setP/(_ x Sx) O_Sx KSM ; rewrite /Mpoints /= in Kx.
+    have KiM : forall i, row i K \in Mpoints M => [i|].
+      move: (openS_near_scale (row i K) O_Sx) => [l lt_0l S_x_lKi].
+      have K_x_lKi : (x + l%:M *m row i K)%R \in Mpoints K.
+        by rewrite inE /Mpoints /= ; apply addmx_sub => // ;
+        apply mulmx_sub ; apply row_sub.
+      have M_x_lKi : (x + l%:M *m row i K)%R \in Mpoints M ; [|clear K_x_lKi S_x_lKi].
+        rewrite -Csubset1 ; apply (@subset_trans _ (Mpoints K `&` S)) => // ; rewrite Csubset1.
+        rewrite in_setI ; apply /andP ; split ; [apply K_x_lKi|rewrite inE ; apply S_x_lKi].
+      have Mx : x \in Mpoints M.
+        rewrite -Csubset1 ; apply (@subset_trans _ (Mpoints K `&` S)) => // ; rewrite Csubset1.
+        rewrite in_setI ; apply /andP ; split ; rewrite inE ?/Mpoints //=.
+      rewrite !inE /Mpoints /= in M_x_lKi Mx * ; apply (@submx_lin x _ l) => //.
+    have KM : (K <= M)%MS.
+      by apply /row_subP => i ; move: (KiM i) ; rewrite inE /Mpoints /=.
+    by apply mxrankS.
+  - apply inf_le ; rewrite fpoints_onNon.
+    remember ([set i | tnth f i == On]) as P ; rewrite -?HeqP.
+    remember (\bigcap_(i in P) tnth H i)%MS as K ; rewrite -?HeqK.
+    by exists (\rank K) => //= ; exists K.
 Qed.
+
+Lemma fdim_lb (f : face) : nempty f -> dim f >= d - count (xpred1 On) f.
+Proof.
+  move=> NEf ; rewrite dimE //.
+  have cond i : (tnth f i == On) = (i \in [set i | tnth f i == On]).
+    by apply is_true_inj ; rewrite in_setE /=.
+  under eq_bigl do rewrite cond.
+  by rewrite -card_set_count hplane_cap_lb.
+Qed.
+  
+Lemma subface_exist g : nempty g -> dim g > 0 -> exists f, subface f g.
+Proof. Admitted.
+
+
+Lemma face_Ofg_reduce f g i0 :
+  let Of := [set j | (tnth f j == On) && (tnth g j != On)] in
+  let Og := [set j | tnth g j == On] in
+  subface f g -> i0 \in Of ->
+  (\bigcap_(i in Of `|` Og) tnth H i == \bigcap_(i in i0 |` Og) tnth H i)%MS.
+Proof. 
+  pose Of := [set j | (tnth f j == On) && (tnth g j != On)].
+  pose Og := [set j | tnth g j == On].
+  rewrite /= -/Og -/Of => sub_fg Of_i0.
+  rewrite -(mxrank_leqif_eq _) ; last first.
+    by apply mxbigcap_sub => i ; move: Of_i0 ; rewrite !in_setE /= => [+ [->|]] ; intuition.
+  have -> : \rank (\bigcap_(i in Of `|` Og) tnth H i) = dim f.
+    rewrite dimE ; [f_equal ; apply eq_bigl => i | by case: sub_fg].
+    apply is_true_inj ; rewrite in_setE /Og /Of /= ; apply propext ; split ; last first.
+      move=> -> /= ; case: (tnth g i =P On) ; intuition.
+    case => [/andP[->] //|].
+    case: sub_fg => NE_f _ /face_inclP /forallP Hfg _.
+    by case: (orP (Hfg NE_f i)) => [|/eqP->].
+  rewrite (eqmxP (mxbigcap1U _ _)) ; last first.
+    by move: Of_i0 ; rewrite /Of /Og in_setE /= notin_set /= => /andP[_ /negP].
+  have Rg : \rank (\bigcap_(i in Og) tnth H i)%MS = dim g.
+    rewrite dimE ; [f_equal ; apply eq_bigl => i | by case: sub_fg].
+    by apply is_true_inj ; rewrite in_setE /Og /=.
+  suff Nsub : ~~ (\bigcap_(i in Og) tnth H i <= tnth H i0)%MS.
+    move: (Mhcap_rank_eq (tnth H i0) (\bigcap_(i in Og) tnth H i)%MS).
+    by rewrite Rg Nsub /= capmxC ; case: sub_fg => _ _ _ ; lia.
+  move: Of_i0 ; rewrite in_setE /Of /= ; apply contraL ; rewrite negb_and negbK.
+  have [x /[dup] gx] : nempty g by case: sub_fg.
+  rewrite fpoints_onNon /Mpoints /= -/Og => [[sub1 _]] sub2.
+  have {sub1} {sub2} /hsideE : (x <= tnth H i0)%MS by eapply submx_trans ; eauto.
+  by move: gx ; rewrite -in_setE => /fpointsP /(_ i0) -> ; intuition.
+Qed.
+
+Lemma face_Ofg_sub f g : 
+  let Of := [set j | (tnth f j == On) && (tnth g j != On)] in
+  let Og := [set j | tnth g j == On] in
+  subface f g -> 
+  (fpoints f `<=` Mpoints (\bigcap_(i in Of `|` Og) tnth H i)%MS).
+Proof.
+  pose Of := [set j | (tnth f j == On) && (tnth g j != On)].
+  pose Og := [set j | tnth g j == On].
+  rewrite /= fpoints_onNon -/Og -/Of => sub_fg.
+  have cond i : i \in Of `|` Og = (i \in [set j | tnth f j == On]).
+    apply is_true_inj ; rewrite !in_setE /Of /Og /= ; apply propext ; split ; last first.
+      by move=> -> /= ; case: (tnth g i =P On) ; intuition.
+    case => [/andP[->] //|].
+    case: sub_fg => NE_f _ /face_inclP /forallP Hfg _.
+    by case: (orP (Hfg NE_f i)) => [|/eqP->].
+  by under eq_bigl do rewrite cond ; apply subIsetl.
+Qed.
+
+(* With On(f) = [set i | f i = On], this lemma says that
+ * the sets (On(f) \ On(g)) when f ranges over the subfaces of g are disjoint *)
+Lemma subfaces_disjoint f f' g i : 
+  subface f g -> subface f' g ->
+  tnth f i == On -> tnth f' i == On -> tnth g i != On -> f = f'.
+Proof. 
+  move=> sub_fg sub_f'g fi f'i gi.
+  pose Of := [set j | (tnth f j == On) && (tnth g j != On)].
+  pose Of' := [set j | (tnth f' j == On) && (tnth g j != On)].
+  pose Og := [set j | tnth g j == On].
+  apply eq_from_tnth => j.
+  suff: j \in Of \/ j \in Of' -> tnth f j = tnth f' j.
+    (case E: ((j \in Of) || (j \in Of')) ; move: E) => [/idP /orP|/negbT] ; first by intuition.
+    rewrite negb_or -!in_setC /Of /Of' => /andP [+ +] _.
+    rewrite !in_setE /= => /idP + /idP ; rewrite !negb_and !negbK => /orP H1 /orP H2.
+    have Hfg : (tnth f j = On) \/ (tnth f j = tnth g j).
+      case: sub_fg => NE_f _ /face_inclP fiP _ ; feed fiP ; first by [].
+      by move: fiP => /forallP /(_ j) /orP[|] /eqP-> ; intuition.
+    have Hf'g : (tnth f' j = On) \/ (tnth f' j = tnth g j).
+      case: sub_f'g => NE_f' _ /face_inclP f'iP _ ; feed f'iP ; first by [].
+      by move: f'iP => /forallP /(_ j) /orP[|] /eqP-> ; intuition.
+    have HhOn : tnth g j == On -> tnth f j = tnth f' j.
+      move=> /eqP H3 ; rewrite H3 in Hfg Hf'g.
+      by case: Hfg ; case: Hf'g => -> ->.
+    case: H1 ; case: H2 ; try auto.
+    move=> /eqP + /eqP ; intuition ; last by eapply eq_trans ; eauto.
+  wlog : f f' sub_fg sub_f'g fi f'i @Of @Of' / (j \in Of) => [|Ofj _].
+    by move=> HW [|] Hj ; [|symmetry] ; eapply HW => // ; rewrite -/Of -/Of' ; intuition.
+  have [x f'x] : nempty f' by case: sub_f'g.
+  suff : hside x (tnth H j) == On.
+    move: Ofj ; rewrite /Of in_setE /= => /andP[/eqP-> _] /eqP.
+    by move: f'x ; rewrite -in_setE => /fpointsP /(_ j) -> ->.
+  have Ofi : i \in Of by rewrite /Of in_setE /= ; apply /andP.
+  have Of'i : i \in Of' by rewrite /Of' in_setE /= ; apply /andP.
+  move: (face_Ofg_reduce sub_fg Ofi) (face_Ofg_reduce sub_f'g Of'i) ; 
+    rewrite -/Of -/Of' -/Og => /andP[_ Ofg_red] /andP[Of'g_red _].
+  move: (face_Ofg_sub sub_f'g) ; rewrite -/Of' -/Og /Mpoints => /(_ x f'x) /= => x_Of'g.
+  have: (x <= \bigcap_(i in (Of `|` Og)) tnth H i)%MS.
+    eapply submx_trans ; first apply x_Of'g.
+    eapply submx_trans ; first apply Of'g_red.
+    by apply Ofg_red.
+  move: (Ofj) => Ofj2 ; rewrite in_setE in Ofj2 ; apply setD1K in Ofj2 ; rewrite -Ofj2 -setUA.
+  rewrite (eqmxP (mxbigcap1U _ _)) ; last first. 
+    rewrite notin_set /= => [[[]|]] //.
+    move: Ofj ; rewrite in_setE /Og /Of /= => /andP[_] /[swap] /eqP->.
+    by rewrite eqxx.
+  by rewrite sub_capmx => /andP[/hsideE + _].
+Qed.
+
 
 Definition simple := \rank (\bigcap_(i : 'I_n) tnth H i) = 0.
 
@@ -217,7 +412,6 @@ Theorem nempty_face_count (k : 'I_d.+1) :
     <= \sum_(i < k.+1) 'C(d-i, k-i) * 'C(n, d-i)
     ?= iff `[< simple >].
 Proof. Admitted.
-
 
 Section SimpleArrangement.
 (* Since I only study arrangements in which all hyperplanes 
@@ -232,13 +426,13 @@ Lemma hplane_cap_eq (P : set 'I_n) :
 Proof. 
   elim /finset_ind_rev : P => /= [|i0 P N_Px].
     by under eq_big do [rewrite in_setT|] ; rewrite sH card_setT /= card_ord ; lia.
-  rewrite set1U_disj_card // (eqmx_rank (bigcap1U _ _)) //.
+  rewrite set1U_disj_card // (eqmx_rank (mxbigcap1U _ _)) //.
   remember (\bigcap_(i in P) tnth H i)%MS as M ; rewrite -HeqM => IH.
   suff: \rank M <= d - #|P|.
     move: (hplane_cap_lb P) ; rewrite -HeqM => LB UB. 
     by apply /eqP ; rewrite eqn_leq UB LB.
   have MHi0C : (M :&: tnth H i0 == tnth H i0 :&: M)%MS by rewrite capmxC submx_refl.
-  move: (Mhcap_rank_lb M (tnth H i0)).
+  move: (Mhcap_rank_lb (tnth H i0) M).
   move: (Nin_card_ltT N_Px) ; rewrite card_ord [n in _ < n]eq_nd => lt_Pd.
   rewrite (eqmx_rank MHi0C) IH -(leq_add2r 1) subnK.
   rewrite -addn1 subnDA subnK //. 
@@ -259,7 +453,7 @@ Proof.
 Qed.
 
 
-Theorem dimE f : nempty f -> dim f = d - count (xpred1 On) f.
+Theorem dim_simpleE f : nempty f -> dim f = d - count (xpred1 On) f.
 Proof. by move=> NEf ; apply /eqP ; rewrite eqn_leq fdim_ub fdim_lb. Qed.
 
 Lemma size_enum_sign : size (enum sign_finType) = 3.
@@ -441,7 +635,7 @@ Qed.
 Lemma dim_eqk f g k : dim g = dim f + k <-> 
   count (xpred1 On) f = count (xpred1 On) g + k.
 Proof.    
-  rewrite !dimE ; [|by apply all_nempty ..] ; split ; last first.
+  rewrite !dim_simpleE ; [|by apply all_nempty ..] ; split ; last first.
   - move=> P ; rewrite P subnDA subnK //.
     have: count (xpred1 On) f <= d by rewrite -eq_nd ; apply tuple_count_size.
     by lia. 

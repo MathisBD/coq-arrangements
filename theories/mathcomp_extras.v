@@ -11,19 +11,27 @@ Section TupleExtras.
 Variables (T : eqType) (n : nat).
 Implicit Types (x y : T) (t : n.-tuple T).
 
-Lemma tuple_cons_in x y t (l : list (n.-tuple T)) :
-  [tuple of x :: t] \in map (cons_tuple y) l <-> x = y /\ t \in l.
-Proof. Admitted.
-
-Lemma tuple_behead_cons x t :
-  [tuple of behead [tuple of x :: t]] = t. 
-Proof. Admitted.
 
 Lemma cons_tupleE x t : cons_tuple x t = [tuple of x :: t].
 Proof. by []. Qed. 
 
+Lemma tuple_cons_in x y t (l : list (n.-tuple T)) :
+  [tuple of x :: t] \in map (cons_tuple y) l <-> x = y /\ t \in l.
+Proof.
+  split => [| [->]] ; last by apply map_f.
+  elim: l => [|t0 l IH] ; first by rewrite /= in_nil.
+  rewrite map_cons in_cons => /orP[|].
+  - rewrite -val_eqE /= => /eqP[-> /val_inj ->]. 
+    by rewrite in_cons eqxx.
+  - by rewrite in_cons ; move => /IH[-> ->] ; intuition.
+Qed.
+
+Lemma tuple_behead_cons x t :
+  [tuple of behead [tuple of x :: t]] = t. 
+Proof. by apply val_inj => /=. Qed.
+
 Lemma cons_tuple_inj : injective2 (@cons_tuple n T).
-Proof. Admitted.
+Proof. by move=> x x' t t' [-> /val_inj ->]. Qed.
 
 Lemma tuple_count_size x t :
   count (xpred1 x) t <= n.
@@ -102,7 +110,7 @@ Proof.
   by rewrite -mulmxA scalar_mxC mulmxA.
 Qed.
 
-Lemma bigcap1U n a i0 (P : set 'I_n) (F : 'I_n -> 'M[R]_a) : i0 \notin P ->
+Lemma mxbigcap1U n a i0 (P : set 'I_n) (F : 'I_n -> 'M[R]_a) : i0 \notin P ->
   (\bigcap_(i in (i0 |` P)) F i == F i0 :&: \bigcap_(i in P) F i)%MS.
 Proof. 
   rewrite (bigID [pred i | i == i0]) /= => N_Pi0.
@@ -136,6 +144,11 @@ Proof.
     + by under eq_bigl do rewrite andb_idl => [|/eqP-> //] ; rewrite big_pred1_eq.
 Qed.
 
+
+Lemma mxbigcap_sub n d (P P' : pred 'I_n) (F : 'I_n -> 'M[R]_d) :
+  (forall i, P i -> P' i) -> (\bigcap_(i | P' i) F i <= \bigcap_(i | P i) F i)%MS.
+Proof. Admitted.
+
 End MatrixExtras.
 
 Section NatSetBounds.
@@ -160,17 +173,14 @@ Lemma image_nonempty aT rT (f : aT -> rT) (A : set aT) :
 Proof. by case => [x Ax] ; exists (f x) ; exists x. Qed.
 
 Lemma set_ord0 (P : set 'I_0) : P = set0.
-Proof. Admitted.
+Proof. 
+  case E: `[< P = set0 >].
+  - by move: E => /asboolP.
+  - move: E => /negbT /asboolPn /eqP /set0P [x] ; case: x ; lia.
+Qed.
 
 Lemma Csubset1 T (A : set T) x : ([set x] `<=` A) = (x \in A).
 Proof. by apply propext ; rewrite /subset /= in_setE ; split => [/(_ x (Logic.eq_refl _)) | Ax t ->]. Qed.
-
-Lemma finset_ind_rev (T : finType) (P : (set T) -> Prop) :
-  P setT -> 
-  (forall x S, x \notin S -> P (x |` S) -> P S) ->
-  (forall S, P S).
-Proof. Admitted.
-
 
 Definition disjointS n T (F : 'I_n -> set T) := forall i j, i != j -> F i `&` F j =set0.
 
@@ -255,5 +265,50 @@ Lemma card_bigcup_leif n (F : 'I_n -> set T) :
 Proof. Admitted.
 
 End CardSet.
+
+Lemma finset_ind (T : finType) (P : (set T) -> Prop) :
+  P set0 -> 
+  (forall x S, x \notin S -> P S -> P (x |` S)) ->
+  (forall S, P S).
+Proof. 
+  move=> base step S ; remember #|S| as n.
+  elim: n S Heqn => [S | n IH S cardS]. 
+    by move=> /eqP ; rewrite eq_sym card0_set0 => /eqP -> ; apply base.
+  have: #|S| != 0 by lia.
+  rewrite card0_set0 => /set0P [x Sx].
+  apply setD1K in Sx ; rewrite -Sx ; apply step.
+    by rewrite notin_set /= ; intuition.
+  apply IH ; move: cardS ; rewrite -{1}Sx set1U_disj_card ; first by lia.
+  by rewrite notin_set /= ; intuition.
+Qed.
+
+Lemma interval_ind_rev n (P : nat -> Prop) :
+  (forall k, k >= n -> P k) -> 
+  (forall k, k.+1 <= n -> P k.+1 -> P k) -> 
+  (forall k, P k).
+Proof. 
+  elim: n => [|n IH] base step k ; first by apply base ; lia.
+  apply IH => {} k. 
+  - case: (ltngtP n k) => [+ _| // |<- _] ; first by apply base.
+    by apply step ; [|apply base] ; lia.
+  - by move=> /leqW ; apply step.
+Qed.
+
+Lemma finset_ind_rev (T : finType) (P : (set T) -> Prop) :
+  P setT -> 
+  (forall x S, x \notin S -> P (x |` S) -> P S) ->
+  (forall S, P S).
+Proof.
+  move=> /= base step S ; remember #|S| as n.
+  elim /(@interval_ind_rev #|T|) : n S Heqn => [k ge_kn | k lt_kn IH] S cardS.
+    have /eqP -> : S == [set: T].
+      by rewrite -card_leTif eqn_leq card_leTif /= -cardS.
+    by apply base.
+  have /setTPn [x N_Sx] : S != [set: T].
+    by rewrite -(ltn_leqif (card_leTif _)) -cardS.
+  apply (step x) ; first by rewrite notin_set.
+  by apply IH ; rewrite cardS set1U_disj_card // notin_set.
+Qed.
+
 
 End ClassicalSetsExtras.
