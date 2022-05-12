@@ -503,7 +503,7 @@ Qed.
 Lemma total_nemptyf_count : #|[set f | `[< nempty f >]]| = 3 ^ d.
 Proof. 
   pose F (k : 'I_d.+1) := [set f | dim f == k].
-  rewrite [[set f | `[< nempty f >]]](@bigcap_decomp _ _ F).
+  rewrite [[set f | `[< nempty f >]]](@bigcup_decomp _ _ F).
   suff : disjointS F => [/(@disjointS_capl _ _ [set f | `[< nempty f >]]) /asboolP |].
     rewrite -card_bigcup_leif /F => /eqP ->.
     under eq_big do [|rewrite setIC -set_andb dimk_nemptyf_count]. 

@@ -192,9 +192,9 @@ Lemma disjointS_capr n T S (F : 'I_n -> set T) :
   disjointS F -> disjointS (fun i => F i `&` S).
 Proof. Admitted.
 
-Lemma bigcap_decomp n T (F : 'I_n -> set T) S :
+Lemma bigcup_decomp n T (F : 'I_n -> set T) S :
   S `<=` \bigcup_i F i -> S = \bigcup_i (S `&` F i).
-Proof. Admitted.
+Proof. by rewrite -setI_bigcupr => Hsub ; symmetry ; apply setIidl. Qed.
 
 Section CardSet.
 Variables (T : finType).
